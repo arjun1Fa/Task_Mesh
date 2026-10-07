@@ -35,9 +35,12 @@ class ClusterHealthResponse(BaseModel):
     scheduler_mode: str
 
 
-def create_app(runtime: Optional[OrchestratorRuntime] = None) -> FastAPI:
+def create_app(
+    runtime: Optional[OrchestratorRuntime] = None,
+    config: Optional[OrchestratorConfig] = None,
+) -> FastAPI:
     """Creates the FastAPI application for TaskMesh."""
-    cfg = OrchestratorConfig()
+    cfg = config or (runtime.config if runtime else OrchestratorConfig())
     rt = runtime or OrchestratorRuntime(
         repository=SQLiteTaskRepository(cfg.db_url.replace("sqlite:///", "")),
         config=cfg,
@@ -187,6 +190,27 @@ def create_app(runtime: Optional[OrchestratorRuntime] = None) -> FastAPI:
         return recovered
 
     # ---------------------------------------------------------
+    # REST API Routes: Primary / Standby Replication & Failover
+    # ---------------------------------------------------------
+
+    @app.get("/v1/standby/snapshot")
+    async def get_standby_snapshot() -> Dict[str, Any]:
+        return await rt.create_snapshot()
+
+    @app.get("/v1/standby/status")
+    async def get_standby_status() -> Dict[str, Any]:
+        return {
+            "standby_mode": rt.config.standby_mode,
+            "primary_url": rt.config.primary_url,
+            "snapshot_interval_seconds": rt.config.snapshot_interval_seconds,
+        }
+
+    @app.post("/v1/standby/promote")
+    async def promote_standby() -> Dict[str, str]:
+        await rt.promote_to_primary()
+        return {"status": "promoted", "role": "primary"}
+
+    # ---------------------------------------------------------
     # WebSocket Endpoint: Compute Nodes
     # ---------------------------------------------------------
 
@@ -201,6 +225,18 @@ def create_app(runtime: Optional[OrchestratorRuntime] = None) -> FastAPI:
 
             if reg_msg.message_type != MessageType.REGISTER_NODE:
                 await websocket.close(code=1008, reason="Expected REGISTER_NODE")
+                return
+
+            # Validate security signature and replay protection in secure mode
+            is_valid, sec_err = rt.security.validate_incoming(reg_msg)
+            if not is_valid:
+                logger.warning(f"Registration rejected due to security check: {sec_err}")
+                ack = ProtocolMessage(
+                    message_type=MessageType.REGISTER_ACK,
+                    payload=RegisterAckPayload(node_id=reg_msg.node_id or "unknown", accepted=False, message=f"Security rejection: {sec_err}").model_dump(mode="json"),
+                )
+                await websocket.send_text(json.dumps(ack.model_dump(mode="json")))
+                await websocket.close(code=1008, reason=f"Security rejection: {sec_err}")
                 return
 
             reg_payload = RegisterNodePayload.model_validate(reg_msg.payload)

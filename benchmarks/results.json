@@ -2,10 +2,10 @@
   {
     "scheduler": "Round Robin",
     "total_tasks": 200,
-    "total_time_seconds": 0.0016,
-    "throughput_tasks_per_sec": 122654.2,
-    "avg_scheduling_latency_ms": 0.007,
-    "max_scheduling_latency_ms": 0.065,
+    "total_time_seconds": 0.0012,
+    "throughput_tasks_per_sec": 160179.4,
+    "avg_scheduling_latency_ms": 0.006,
+    "max_scheduling_latency_ms": 0.024,
     "fairness_cv": 0.0,
     "allocations_per_node": {
       "node-gpu-rig": 50,
@@ -17,10 +17,10 @@
   {
     "scheduler": "Least Loaded",
     "total_tasks": 200,
-    "total_time_seconds": 0.0015,
-    "throughput_tasks_per_sec": 137542.1,
-    "avg_scheduling_latency_ms": 0.007,
-    "max_scheduling_latency_ms": 0.017,
+    "total_time_seconds": 0.0013,
+    "throughput_tasks_per_sec": 149354.0,
+    "avg_scheduling_latency_ms": 0.006,
+    "max_scheduling_latency_ms": 0.014,
     "fairness_cv": 1.7321,
     "allocations_per_node": {
       "node-gpu-rig": 200,
@@ -32,10 +32,10 @@
   {
     "scheduler": "Highest Bid",
     "total_tasks": 200,
-    "total_time_seconds": 0.0023,
-    "throughput_tasks_per_sec": 85781.7,
+    "total_time_seconds": 0.0024,
+    "throughput_tasks_per_sec": 83538.7,
     "avg_scheduling_latency_ms": 0.011,
-    "max_scheduling_latency_ms": 0.026,
+    "max_scheduling_latency_ms": 0.064,
     "fairness_cv": 1.7321,
     "allocations_per_node": {
       "node-gpu-rig": 200,
@@ -47,16 +47,16 @@
   {
     "scheduler": "TaskMesh Adaptive",
     "total_tasks": 200,
-    "total_time_seconds": 0.0069,
-    "throughput_tasks_per_sec": 28938.5,
-    "avg_scheduling_latency_ms": 0.026,
-    "max_scheduling_latency_ms": 0.069,
-    "fairness_cv": 1.5036,
+    "total_time_seconds": 0.0054,
+    "throughput_tasks_per_sec": 37337.1,
+    "avg_scheduling_latency_ms": 0.019,
+    "max_scheduling_latency_ms": 0.125,
+    "fairness_cv": 0.642,
     "allocations_per_node": {
-      "node-gpu-rig": 12,
-      "node-cpu-server": 180,
-      "node-laptop": 8,
-      "node-edge-mini": 0
+      "node-gpu-rig": 98,
+      "node-cpu-server": 59,
+      "node-laptop": 29,
+      "node-edge-mini": 14
     }
   }
 ]

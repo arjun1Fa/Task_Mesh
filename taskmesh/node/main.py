@@ -23,6 +23,10 @@ def main() -> None:
     parser.add_argument("--token", type=str, default=None, help="Cluster join token")
     parser.add_argument("--workers", type=int, default=None, help="Local worker concurrency")
     parser.add_argument("--tags", type=str, default=None, help="Comma-separated capability tags")
+    parser.add_argument("--standby-url", type=str, default=None, help="Standby Orchestrator WebSocket URL for failover")
+    parser.add_argument("--secure", action="store_true", help="Enable secure HMAC signing")
+    parser.add_argument("--heartbeat-interval", type=float, default=None, help="Heartbeat interval in seconds")
+    parser.add_argument("--telemetry-interval", type=float, default=None, help="Telemetry interval in seconds")
     args = parser.parse_args()
 
     cfg = NodeConfig()
@@ -30,12 +34,20 @@ def main() -> None:
         cfg.node_id = args.node_id
     if args.url:
         cfg.orchestrator_url = args.url
+    if args.standby_url:
+        cfg.standby_url = args.standby_url
     if args.token:
         cfg.join_token = args.token
+    if args.secure:
+        cfg.secure_mode = True
     if args.workers:
         cfg.worker_concurrency = args.workers
     if args.tags:
         cfg.tags = args.tags
+    if args.heartbeat_interval is not None:
+        cfg.heartbeat_interval_seconds = args.heartbeat_interval
+    if args.telemetry_interval is not None:
+        cfg.telemetry_interval_seconds = args.telemetry_interval
 
     agent = NodeAgent(config=cfg)
 

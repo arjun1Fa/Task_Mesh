@@ -156,4 +156,5 @@ class ProtocolMessage(BaseModel):
     node_id: Optional[str] = None
     timestamp: datetime = Field(default_factory=utc_now)
     sequence_number: Optional[int] = None
+    signature: Optional[str] = None
     payload: Dict[str, Any] = Field(default_factory=dict)

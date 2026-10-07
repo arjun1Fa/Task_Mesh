@@ -41,8 +41,17 @@ from taskmesh.scheduler.baseline import (
     RoundRobinScheduler,
 )
 from taskmesh.scheduler.decision import SchedulerDecision
+from taskmesh.security.hmac_auth import SecurityManager
 
 logger = logging.getLogger("taskmesh.runtime")
+
+
+async def _send_websocket_text(ws: Any, text: str) -> None:
+    """Sends text message across either FastAPI/Starlette WebSocket or client protocol."""
+    if hasattr(ws, "send_text"):
+        await ws.send_text(text)
+    elif hasattr(ws, "send"):
+        await ws.send(text)
 
 
 class OrchestratorRuntime:
@@ -60,6 +69,7 @@ class OrchestratorRuntime:
         self.idempotency = IdempotencyStore()
         self.dlq = DLQManager()
         self.checkpoints = CheckpointManager()
+        self.security = SecurityManager(secret_key=self.config.join_token, secure_mode=self.config.secure_mode)
 
         # Initialize scheduler based on mode
         self.scheduler: Scheduler = self._init_scheduler(self.config.scheduler_mode)
@@ -93,6 +103,14 @@ class OrchestratorRuntime:
     async def start(self) -> None:
         """Starts the orchestrator engine and background loops."""
         self.is_running = True
+
+        if self.config.standby_mode:
+            logger.info(f"Starting TaskMesh Orchestrator in STANDBY mode (Replicating from {self.config.primary_url})")
+            self._background_tasks = [
+                asyncio.create_task(self._standby_replication_loop(), name="standby_replicator"),
+            ]
+            return
+
         logger.info(f"Starting TaskMesh Orchestrator (Mode: {self.config.scheduler_mode.value})")
 
         # Recover uncompleted tasks from persistence into queue
@@ -111,6 +129,111 @@ class OrchestratorRuntime:
             asyncio.create_task(self._lease_checker_loop(), name="lease_checker"),
             asyncio.create_task(self._delayed_tasks_loop(), name="delayed_scheduler"),
         ]
+
+    async def create_snapshot(self) -> Dict[str, Any]:
+        """Creates a complete state snapshot for standby replication."""
+        tasks = await self.repo.list(limit=5000)
+        nodes = await self.registry.list_nodes()
+        checkpoints = list(self.checkpoints._checkpoints.values())
+
+        mwu_w = {}
+        q_tab = {}
+        drr_def = {}
+        if isinstance(self.scheduler, AdaptiveScheduler):
+            mwu_w = self.scheduler.mwu.get_weights()
+            q_tab = {str(k): v for k, v in self.scheduler.rl.q_table.items()}
+            drr_def = dict(self.scheduler.drr._deficits)
+
+        return {
+            "timestamp": utc_now().isoformat(),
+            "tasks": [t.model_dump(mode="json") for t in tasks],
+            "nodes": [n.model_dump(mode="json") for n in nodes],
+            "checkpoints": [c.model_dump(mode="json") for c in checkpoints],
+            "mwu_weights": mwu_w,
+            "q_table": q_tab,
+            "drr_deficits": drr_def,
+        }
+
+    async def apply_snapshot(self, snapshot: Dict[str, Any]) -> None:
+        """Applies a replicated snapshot into local state."""
+        import ast
+        for t_data in snapshot.get("tasks", []):
+            t = Task.model_validate(t_data)
+            await self.repo.save(t)
+
+        for n_data in snapshot.get("nodes", []):
+            n = NodeProfile.model_validate(n_data)
+            self.registry._nodes[n.id] = n
+
+        for c_data in snapshot.get("checkpoints", []):
+            c = CheckpointData.model_validate(c_data)
+            await self.checkpoints.save_checkpoint(c)
+
+        if isinstance(self.scheduler, AdaptiveScheduler):
+            if "mwu_weights" in snapshot and snapshot["mwu_weights"]:
+                self.scheduler.mwu.weights = dict(snapshot["mwu_weights"])
+            if "drr_deficits" in snapshot and snapshot["drr_deficits"]:
+                self.scheduler.drr._deficits = {k: float(v) for k, v in snapshot["drr_deficits"].items()}
+            if "q_table" in snapshot and snapshot["q_table"]:
+                for k_str, q_vals in snapshot["q_table"].items():
+                    try:
+                        k_tuple = ast.literal_eval(k_str)
+                        self.scheduler.rl.q_table[k_tuple] = [float(x) for x in q_vals]
+                    except Exception:
+                        pass
+
+    async def promote_to_primary(self) -> None:
+        """Promotes a standby orchestrator to primary upon primary failure."""
+        async with self._lock:
+            if not self.config.standby_mode:
+                return
+            logger.warning("Automated Failover: PROMOTING Standby Orchestrator to PRIMARY!")
+            self.config.standby_mode = False
+
+            # Recover tasks
+            running = await self.repo.list(status=TaskStatus.RUNNING, limit=500)
+            pending = await self.repo.list(status=TaskStatus.PENDING, limit=500)
+            for t in running + pending:
+                t.status = TaskStatus.PENDING
+                t.assigned_node_id = None
+                t.active_lease = None
+                await self.repo.save(t)
+                await self.queue.enqueue(t)
+
+            self._background_tasks = [
+                asyncio.create_task(self._dispatch_loop(), name="dispatcher"),
+                asyncio.create_task(self._health_monitor_loop(), name="health_monitor"),
+                asyncio.create_task(self._lease_checker_loop(), name="lease_checker"),
+                asyncio.create_task(self._delayed_tasks_loop(), name="delayed_scheduler"),
+            ]
+
+    async def _standby_replication_loop(self) -> None:
+        """Polls primary orchestrator snapshot endpoint and promotes upon failure."""
+        import httpx
+        consecutive_failures = 0
+        max_failures_before_promotion = 3
+
+        while self.is_running and self.config.standby_mode:
+            try:
+                if self.config.primary_url:
+                    async with httpx.AsyncClient(timeout=2.0) as client:
+                        resp = await client.get(f"{self.config.primary_url}/v1/standby/snapshot")
+                        if resp.status_code == 200:
+                            snapshot = resp.json()
+                            await self.apply_snapshot(snapshot)
+                            consecutive_failures = 0
+                        else:
+                            consecutive_failures += 1
+            except Exception as e:
+                consecutive_failures += 1
+                logger.warning(f"Standby health probe failed ({consecutive_failures}/{max_failures_before_promotion}): {e}")
+
+            if consecutive_failures >= max_failures_before_promotion:
+                logger.error(f"Primary orchestrator failure confirmed! Promoting to PRIMARY.")
+                await self.promote_to_primary()
+                break
+
+            await asyncio.sleep(self.config.snapshot_interval_seconds)
 
     async def stop(self) -> None:
         """Gracefully stops the runtime."""
@@ -186,7 +309,7 @@ class OrchestratorRuntime:
                     payload=TaskCancelPayload(task_id=task.id, attempt_id=task.current_attempt_id, reason=reason).model_dump(mode="json"),
                 )
                 try:
-                    await ws.send(json.dumps(cancel_msg.model_dump(mode="json")))
+                    await _send_websocket_text(ws, json.dumps(cancel_msg.model_dump(mode="json")))
                 except Exception as e:
                     logger.warning(f"Failed to transmit cancellation to node {task.assigned_node_id}: {e}")
 
@@ -216,7 +339,7 @@ class OrchestratorRuntime:
                 node_id=node_id,
                 payload=NodeDrainPayload(node_id=node_id).model_dump(mode="json"),
             )
-            await ws.send(json.dumps(msg.model_dump(mode="json")))
+            await _send_websocket_text(ws, json.dumps(msg.model_dump(mode="json")))
 
     async def get_decisions(self, limit: int = 50) -> List[SchedulerDecision]:
         async with self._lock:
@@ -297,7 +420,8 @@ class OrchestratorRuntime:
                     node_id=selected_node_id,
                     payload=assignment.model_dump(mode="json"),
                 )
-                await ws.send(json.dumps(msg.model_dump(mode="json")))
+                self.security.sign(msg)
+                await _send_websocket_text(ws, json.dumps(msg.model_dump(mode="json")))
                 logger.info(f"Dispatched task [{task.id}] attempt [{attempt_id}] to node [{selected_node_id}] via {decision.policy_used.value}")
 
             except asyncio.CancelledError:
@@ -314,6 +438,12 @@ class OrchestratorRuntime:
         """Processes incoming WebSocket protocol messages from compute nodes."""
         data = json.loads(raw_data)
         msg = ProtocolMessage.model_validate(data)
+
+        # Validate security integrity & replay
+        is_valid, sec_err = self.security.validate_incoming(msg)
+        if not is_valid:
+            logger.warning(f"Rejected message from node [{msg.node_id}]: {sec_err}")
+            return
         node_id = msg.node_id or ""
 
         if msg.message_type == MessageType.HEARTBEAT:

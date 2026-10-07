@@ -35,11 +35,16 @@ class OrchestratorConfig(BaseModel):
     primary_url: Optional[str] = Field(default_factory=lambda: os.getenv("TASKMESH_PRIMARY_URL", None))
     snapshot_interval_seconds: float = Field(default_factory=lambda: float(os.getenv("TASKMESH_SNAPSHOT_INTERVAL", "5.0")))
 
+    # Security
+    secure_mode: bool = Field(default_factory=lambda: os.getenv("TASKMESH_SECURE_MODE", "false").lower() == "true")
+
 
 class NodeConfig(BaseModel):
     node_id: str = Field(default_factory=lambda: os.getenv("TASKMESH_NODE_ID", f"node-{os.getpid()}"))
     orchestrator_url: str = Field(default_factory=lambda: os.getenv("TASKMESH_ORCHESTRATOR_URL", "ws://127.0.0.1:8000/v1/ws/nodes"))
+    standby_url: Optional[str] = Field(default_factory=lambda: os.getenv("TASKMESH_STANDBY_URL", None))
     join_token: str = Field(default_factory=lambda: os.getenv("TASKMESH_JOIN_TOKEN", "default-mesh-secret"))
+    secure_mode: bool = Field(default_factory=lambda: os.getenv("TASKMESH_SECURE_MODE", "false").lower() == "true")
     worker_concurrency: int = Field(default_factory=lambda: int(os.getenv("TASKMESH_WORKERS", "4")))
     heartbeat_interval_seconds: float = Field(default_factory=lambda: float(os.getenv("TASKMESH_HEARTBEAT_INTERVAL", "3.0")))
     telemetry_interval_seconds: float = Field(default_factory=lambda: float(os.getenv("TASKMESH_TELEMETRY_INTERVAL", "5.0")))

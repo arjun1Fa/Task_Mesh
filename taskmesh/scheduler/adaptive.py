@@ -39,15 +39,16 @@ class AdaptiveScheduler:
             raise IneligibleNodeError(f"No eligible nodes available for task {task.id}")
 
         async with self._lock:
-            # 1. Update DRR deficits for eligible candidates
-            self.drr.update_quantum_and_deficits(eligible)
+            # 1. DRR Fairness Gate: Filter eligible candidates that have sufficient deficit in the current round.
+            # If all candidates have exhausted deficit, a new round is triggered, replenishing all candidate deficits.
+            fair_candidates = self.drr.get_eligible_with_deficit(eligible, cost=1.0)
 
-            # 2. Compute bids using current MWU weights
+            # 2. Compute bids for fair candidates using current MWU weights
             current_weights = self.mwu.get_weights()
-            bids = {n.id: calculate_node_bid(n, task, current_weights) for n in eligible}
+            bids = {n.id: calculate_node_bid(n, task, current_weights) for n in fair_candidates}
 
             # 3. Sort candidates by bid descending (ranking order)
-            ranked_candidates = sorted(eligible, key=lambda n: bids[n.id], reverse=True)
+            ranked_candidates = sorted(fair_candidates, key=lambda n: bids[n.id], reverse=True)
             top_candidate = ranked_candidates[0]
 
             # 4. Formulate discretized RL state
@@ -61,21 +62,13 @@ class AdaptiveScheduler:
 
             # 6. Apply selected candidate slot
             if rl_action < len(ranked_candidates):
-                candidate_chosen = ranked_candidates[rl_action]
-                # Check fairness: ensure selected node has reasonable deficit
-                if self.drr.get_deficit(candidate_chosen.id) >= 0.5:
-                    selected = candidate_chosen
-                else:
-                    # Fallback to DRR fair selection if deficit is heavily depleted
-                    fair_fallback = self.drr.select_fair_node(ranked_candidates, cost=1.0)
-                    selected = fair_fallback or top_candidate
-                    fallback_reason = "DRR fairness deficit compensation"
+                selected = ranked_candidates[rl_action]
             else:
                 selected = top_candidate
                 fallback_reason = "RL action out of bounds, defaulted to top bid"
 
-            # Deduct DRR cost from selected node
-            self.drr.select_fair_node([selected], cost=1.0)
+            # 7. Deduct 1.0 execution cost from the selected node's DRR deficit
+            self.drr.deduct_cost(selected.id, cost=1.0)
 
             # Record candidate stats for decision object
             scores = {n.id: n.effective_score for n in eligible}
@@ -85,7 +78,7 @@ class AdaptiveScheduler:
                 task_id=task.id,
                 selected_node_id=selected.id,
                 policy_used=SchedulerMode.ADAPTIVE,
-                candidate_node_ids=[n.id for n in eligible],
+                candidate_node_ids=[n.id for n in fair_candidates],
                 candidate_scores=scores,
                 bids=bids,
                 fairness_deficits=deficits,
@@ -113,7 +106,6 @@ class AdaptiveScheduler:
             )
 
             # 2. Update MWU weights based on outcome losses
-            # If task failed or was slow, increase loss
             time_loss = min(1.0, actual_duration_seconds / max(1.0, task.timeout_seconds))
             status_loss = 0.0 if success else 1.0
 

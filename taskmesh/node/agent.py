@@ -7,12 +7,13 @@ from typing import Optional
 import websockets
 
 from taskmesh.core.config import NodeConfig
-from taskmesh.core.enums import MessageType, NodeStatus
+from taskmesh.core.enums import MessageType, NodeStatus, TaskStatus
 from taskmesh.core.models import CheckpointData, TaskResult
 from taskmesh.handlers.ai_inference import image_inference_handler
 from taskmesh.handlers.builtin import cpu_test_handler, log_handler, sleep_handler
 from taskmesh.node.hardware import collect_telemetry, profile_hardware
 from taskmesh.node.worker_pool import WorkerPool
+from taskmesh.security.hmac_auth import SecurityManager
 from taskmesh.protocol.messages import (
     HeartbeatPayload,
     ProtocolMessage,
@@ -43,6 +44,7 @@ class NodeAgent:
         self.is_running = False
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
         self._seq_num = 0
+        self.security = SecurityManager(secret_key=self.config.join_token, secure_mode=self.config.secure_mode)
 
         # Register default handlers
         self.pool.register_handler("log", log_handler)
@@ -58,19 +60,25 @@ class NodeAgent:
 
     async def start(self) -> None:
         self.is_running = True
-        logger.info(f"Starting TaskMesh Node Agent [{self.node_id}] targeting {self.config.orchestrator_url}")
+        urls = [self.config.orchestrator_url]
+        if self.config.standby_url and self.config.standby_url not in urls:
+            urls.append(self.config.standby_url)
+        url_idx = 0
+        logger.info(f"Starting TaskMesh Node Agent [{self.node_id}] targeting {urls}")
 
         while self.is_running:
+            target_url = urls[url_idx % len(urls)]
             try:
-                async with websockets.connect(self.config.orchestrator_url) as ws:
+                async with websockets.connect(target_url) as ws:
                     self._ws = ws
-                    logger.info(f"Connected to orchestrator at {self.config.orchestrator_url}")
+                    logger.info(f"Connected to orchestrator at {target_url}")
 
                     # 1. Register with orchestrator
                     registered = await self._register()
                     if not registered:
-                        logger.error("Node registration rejected, retrying in 5s...")
-                        await asyncio.sleep(5.0)
+                        logger.error("Node registration rejected, retrying in 2s...")
+                        url_idx += 1
+                        await asyncio.sleep(2.0)
                         continue
 
                     # 2. Run concurrent heartbeat, telemetry, and message receiver loops
@@ -86,12 +94,14 @@ class NodeAgent:
                         task.cancel()
 
             except (websockets.ConnectionClosed, OSError) as e:
-                logger.warning(f"Connection lost ({e}), reconnecting in 2s...")
+                logger.warning(f"Connection to {target_url} lost ({e}), attempting reconnection...")
                 self._ws = None
-                await asyncio.sleep(2.0)
+                url_idx += 1
+                await asyncio.sleep(1.0)
             except Exception as e:
-                logger.error(f"Unexpected error in agent loop: {e}", exc_info=True)
-                await asyncio.sleep(2.0)
+                logger.error(f"Unexpected error in agent loop targeting {target_url}: {e}", exc_info=True)
+                url_idx += 1
+                await asyncio.sleep(1.0)
 
     async def stop(self) -> None:
         self.is_running = False
@@ -111,6 +121,7 @@ class NodeAgent:
             sequence_number=self._seq_num,
             payload=payload_dict,
         )
+        self.security.sign(envelope)
         data = json.dumps(envelope.model_dump(mode="json"))
         await self._ws.send(data)
 
@@ -159,6 +170,10 @@ class NodeAgent:
             try:
                 data = json.loads(raw_msg)
                 msg = ProtocolMessage.model_validate(data)
+                is_valid, sec_err = self.security.validate_incoming(msg)
+                if not is_valid:
+                    logger.warning(f"Rejected message from orchestrator: {sec_err}")
+                    continue
                 await self._handle_message(msg)
             except Exception as e:
                 logger.error(f"Error handling incoming message: {e}", exc_info=True)
