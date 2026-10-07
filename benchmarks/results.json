@@ -1,0 +1,62 @@
+[
+  {
+    "scheduler": "Round Robin",
+    "total_tasks": 200,
+    "total_time_seconds": 0.0016,
+    "throughput_tasks_per_sec": 122654.2,
+    "avg_scheduling_latency_ms": 0.007,
+    "max_scheduling_latency_ms": 0.065,
+    "fairness_cv": 0.0,
+    "allocations_per_node": {
+      "node-gpu-rig": 50,
+      "node-cpu-server": 50,
+      "node-laptop": 50,
+      "node-edge-mini": 50
+    }
+  },
+  {
+    "scheduler": "Least Loaded",
+    "total_tasks": 200,
+    "total_time_seconds": 0.0015,
+    "throughput_tasks_per_sec": 137542.1,
+    "avg_scheduling_latency_ms": 0.007,
+    "max_scheduling_latency_ms": 0.017,
+    "fairness_cv": 1.7321,
+    "allocations_per_node": {
+      "node-gpu-rig": 200,
+      "node-cpu-server": 0,
+      "node-laptop": 0,
+      "node-edge-mini": 0
+    }
+  },
+  {
+    "scheduler": "Highest Bid",
+    "total_tasks": 200,
+    "total_time_seconds": 0.0023,
+    "throughput_tasks_per_sec": 85781.7,
+    "avg_scheduling_latency_ms": 0.011,
+    "max_scheduling_latency_ms": 0.026,
+    "fairness_cv": 1.7321,
+    "allocations_per_node": {
+      "node-gpu-rig": 200,
+      "node-cpu-server": 0,
+      "node-laptop": 0,
+      "node-edge-mini": 0
+    }
+  },
+  {
+    "scheduler": "TaskMesh Adaptive",
+    "total_tasks": 200,
+    "total_time_seconds": 0.0069,
+    "throughput_tasks_per_sec": 28938.5,
+    "avg_scheduling_latency_ms": 0.026,
+    "max_scheduling_latency_ms": 0.069,
+    "fairness_cv": 1.5036,
+    "allocations_per_node": {
+      "node-gpu-rig": 12,
+      "node-cpu-server": 180,
+      "node-laptop": 8,
+      "node-edge-mini": 0
+    }
+  }
+]
