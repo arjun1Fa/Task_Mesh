@@ -1,10 +1,10 @@
 """Real end-to-end multi-process distributed test over actual WebSockets."""
 
+import asyncio
 import os
 import subprocess
 import sys
 import tempfile
-import time
 import httpx
 import pytest
 
@@ -18,7 +18,7 @@ async def test_independent_os_process_cluster_execution():
     - Real task dispatch and execution
     """
     python_bin = sys.executable
-    port = 8210
+    port = 8310
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
         db_path = tmp.name
 
@@ -37,14 +37,14 @@ async def test_independent_os_process_cluster_execution():
         # Wait for orchestrator to be ready
         ready = False
         async with httpx.AsyncClient(timeout=2.0) as client:
-            for _ in range(25):
+            for _ in range(30):
                 try:
                     resp = await client.get(f"http://127.0.0.1:{port}/v1/cluster/health")
                     if resp.status_code == 200:
                         ready = True
                         break
                 except Exception:
-                    time.sleep(0.2)
+                    await asyncio.sleep(0.2)
         assert ready, "Orchestrator failed to start within timeout"
 
         # 2. Start 3 independent Node Agent processes
@@ -63,14 +63,17 @@ async def test_independent_os_process_cluster_execution():
         # 3. Wait for all 3 nodes to connect and register
         nodes_registered = False
         async with httpx.AsyncClient(timeout=2.0) as client:
-            for _ in range(30):
-                resp = await client.get(f"http://127.0.0.1:{port}/v1/cluster/health")
-                if resp.status_code == 200:
-                    health = resp.json()
-                    if health.get("online_nodes", 0) >= 3:
-                        nodes_registered = True
-                        break
-                time.sleep(0.2)
+            for _ in range(35):
+                try:
+                    resp = await client.get(f"http://127.0.0.1:{port}/v1/cluster/health")
+                    if resp.status_code == 200:
+                        health = resp.json()
+                        if health.get("online_nodes", 0) >= 3:
+                            nodes_registered = True
+                            break
+                except Exception:
+                    pass
+                await asyncio.sleep(0.2)
         assert nodes_registered, "Nodes failed to register within timeout"
 
         # 4. Submit 6 tasks to the cluster
@@ -97,7 +100,7 @@ async def test_independent_os_process_cluster_execution():
                 if completed_count == len(task_ids):
                     all_completed = True
                     break
-                time.sleep(0.25)
+                await asyncio.sleep(0.25)
 
             assert all_completed, f"Only {completed_count}/{len(task_ids)} tasks completed"
 
@@ -113,16 +116,15 @@ async def test_independent_os_process_cluster_execution():
             assert len(assigned_nodes) >= 2, f"Expected multiple nodes used, got: {assigned_nodes}"
 
     finally:
-        # Cleanly terminate all child processes
         for name, p in reversed(processes):
             try:
                 p.terminate()
-                p.wait(timeout=1.5)
             except Exception:
-                try:
-                    p.kill()
-                except Exception:
-                    pass
+                pass
+            try:
+                p.kill()
+            except Exception:
+                pass
 
         if os.path.exists(db_path):
             try:
