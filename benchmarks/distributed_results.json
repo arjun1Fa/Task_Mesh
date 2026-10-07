@@ -1,0 +1,374 @@
+{
+  "round_robin": {
+    "policy": "round_robin",
+    "trials_count": 3,
+    "tasks_per_trial": 40,
+    "avg_throughput_tasks_per_sec": 23.4,
+    "avg_total_time_seconds": 1.709,
+    "avg_e2e_latency_seconds": 0.9065,
+    "avg_scheduling_latency_ms": 0.05,
+    "avg_fairness_cv": 0.0,
+    "mean_task_distribution": {
+      "node-gpu-rig": 10,
+      "node-cpu-server": 10,
+      "node-laptop": 10,
+      "node-edge-mini": 10
+    },
+    "trial_details": [
+      {
+        "policy": "round_robin",
+        "trial": 1,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.701,
+        "throughput_tasks_per_sec": 23.51,
+        "avg_e2e_latency_seconds": 1.02,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "node-gpu-rig": 10,
+          "node-cpu-server": 10,
+          "node-laptop": 10,
+          "node-edge-mini": 10
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.25,
+          "node-cpu-server": 0.25,
+          "node-laptop": 0.25,
+          "node-edge-mini": 0.25
+        },
+        "failures": 0,
+        "reassignments": 0
+      },
+      {
+        "policy": "round_robin",
+        "trial": 2,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.741,
+        "throughput_tasks_per_sec": 22.98,
+        "avg_e2e_latency_seconds": 0.8619,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "node-gpu-rig": 10,
+          "node-cpu-server": 10,
+          "node-laptop": 10,
+          "node-edge-mini": 10
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.25,
+          "node-cpu-server": 0.25,
+          "node-laptop": 0.25,
+          "node-edge-mini": 0.25
+        },
+        "failures": 0,
+        "reassignments": 0
+      },
+      {
+        "policy": "round_robin",
+        "trial": 3,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.686,
+        "throughput_tasks_per_sec": 23.72,
+        "avg_e2e_latency_seconds": 0.8375,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "node-gpu-rig": 10,
+          "node-cpu-server": 10,
+          "node-laptop": 10,
+          "node-edge-mini": 10
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.25,
+          "node-cpu-server": 0.25,
+          "node-laptop": 0.25,
+          "node-edge-mini": 0.25
+        },
+        "failures": 0,
+        "reassignments": 0
+      }
+    ]
+  },
+  "least_loaded": {
+    "policy": "least_loaded",
+    "trials_count": 3,
+    "tasks_per_trial": 40,
+    "avg_throughput_tasks_per_sec": 23.97,
+    "avg_total_time_seconds": 1.669,
+    "avg_e2e_latency_seconds": 0.7876,
+    "avg_scheduling_latency_ms": 0.05,
+    "avg_fairness_cv": 1.7321,
+    "mean_task_distribution": {
+      "node-gpu-rig": 26,
+      "node-cpu-server": 0,
+      "node-laptop": 13,
+      "node-edge-mini": 0
+    },
+    "trial_details": [
+      {
+        "policy": "least_loaded",
+        "trial": 1,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.641,
+        "throughput_tasks_per_sec": 24.37,
+        "avg_e2e_latency_seconds": 0.7276,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "node-gpu-rig": 40,
+          "node-cpu-server": 0,
+          "node-laptop": 0,
+          "node-edge-mini": 0
+        },
+        "node_utilization": {
+          "node-gpu-rig": 1.0,
+          "node-cpu-server": 0.0,
+          "node-laptop": 0.0,
+          "node-edge-mini": 0.0
+        },
+        "failures": 0,
+        "reassignments": 0
+      },
+      {
+        "policy": "least_loaded",
+        "trial": 2,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.699,
+        "throughput_tasks_per_sec": 23.54,
+        "avg_e2e_latency_seconds": 0.8444,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "node-gpu-rig": 40,
+          "node-cpu-server": 0,
+          "node-laptop": 0,
+          "node-edge-mini": 0
+        },
+        "node_utilization": {
+          "node-gpu-rig": 1.0,
+          "node-cpu-server": 0.0,
+          "node-laptop": 0.0,
+          "node-edge-mini": 0.0
+        },
+        "failures": 0,
+        "reassignments": 0
+      },
+      {
+        "policy": "least_loaded",
+        "trial": 3,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.668,
+        "throughput_tasks_per_sec": 23.99,
+        "avg_e2e_latency_seconds": 0.7907,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "node-gpu-rig": 0,
+          "node-cpu-server": 0,
+          "node-laptop": 40,
+          "node-edge-mini": 0
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.0,
+          "node-cpu-server": 0.0,
+          "node-laptop": 1.0,
+          "node-edge-mini": 0.0
+        },
+        "failures": 0,
+        "reassignments": 0
+      }
+    ]
+  },
+  "highest_bid": {
+    "policy": "highest_bid",
+    "trials_count": 3,
+    "tasks_per_trial": 40,
+    "avg_throughput_tasks_per_sec": 23.58,
+    "avg_total_time_seconds": 1.696,
+    "avg_e2e_latency_seconds": 0.8844,
+    "avg_scheduling_latency_ms": 0.05,
+    "avg_fairness_cv": 1.7321,
+    "mean_task_distribution": {
+      "node-gpu-rig": 13,
+      "node-cpu-server": 0,
+      "node-laptop": 0,
+      "node-edge-mini": 26
+    },
+    "trial_details": [
+      {
+        "policy": "highest_bid",
+        "trial": 1,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.678,
+        "throughput_tasks_per_sec": 23.83,
+        "avg_e2e_latency_seconds": 0.8349,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "node-gpu-rig": 0,
+          "node-cpu-server": 0,
+          "node-laptop": 0,
+          "node-edge-mini": 40
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.0,
+          "node-cpu-server": 0.0,
+          "node-laptop": 0.0,
+          "node-edge-mini": 1.0
+        },
+        "failures": 0,
+        "reassignments": 0
+      },
+      {
+        "policy": "highest_bid",
+        "trial": 2,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.72,
+        "throughput_tasks_per_sec": 23.25,
+        "avg_e2e_latency_seconds": 0.7963,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "node-gpu-rig": 0,
+          "node-cpu-server": 0,
+          "node-laptop": 0,
+          "node-edge-mini": 40
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.0,
+          "node-cpu-server": 0.0,
+          "node-laptop": 0.0,
+          "node-edge-mini": 1.0
+        },
+        "failures": 0,
+        "reassignments": 0
+      },
+      {
+        "policy": "highest_bid",
+        "trial": 3,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.691,
+        "throughput_tasks_per_sec": 23.65,
+        "avg_e2e_latency_seconds": 1.022,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "node-gpu-rig": 40,
+          "node-cpu-server": 0,
+          "node-laptop": 0,
+          "node-edge-mini": 0
+        },
+        "node_utilization": {
+          "node-gpu-rig": 1.0,
+          "node-cpu-server": 0.0,
+          "node-laptop": 0.0,
+          "node-edge-mini": 0.0
+        },
+        "failures": 0,
+        "reassignments": 0
+      }
+    ]
+  },
+  "adaptive": {
+    "policy": "adaptive",
+    "trials_count": 3,
+    "tasks_per_trial": 40,
+    "avg_throughput_tasks_per_sec": 24.07,
+    "avg_total_time_seconds": 1.662,
+    "avg_e2e_latency_seconds": 0.7786,
+    "avg_scheduling_latency_ms": 0.05,
+    "avg_fairness_cv": 0.0,
+    "mean_task_distribution": {
+      "node-gpu-rig": 10,
+      "node-cpu-server": 10,
+      "node-laptop": 10,
+      "node-edge-mini": 10
+    },
+    "trial_details": [
+      {
+        "policy": "adaptive",
+        "trial": 1,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.703,
+        "throughput_tasks_per_sec": 23.48,
+        "avg_e2e_latency_seconds": 0.8327,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "node-gpu-rig": 10,
+          "node-cpu-server": 10,
+          "node-laptop": 10,
+          "node-edge-mini": 10
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.25,
+          "node-cpu-server": 0.25,
+          "node-laptop": 0.25,
+          "node-edge-mini": 0.25
+        },
+        "failures": 0,
+        "reassignments": 0
+      },
+      {
+        "policy": "adaptive",
+        "trial": 2,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.68,
+        "throughput_tasks_per_sec": 23.81,
+        "avg_e2e_latency_seconds": 0.8095,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "node-gpu-rig": 10,
+          "node-cpu-server": 10,
+          "node-laptop": 10,
+          "node-edge-mini": 10
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.25,
+          "node-cpu-server": 0.25,
+          "node-laptop": 0.25,
+          "node-edge-mini": 0.25
+        },
+        "failures": 0,
+        "reassignments": 0
+      },
+      {
+        "policy": "adaptive",
+        "trial": 3,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 1.604,
+        "throughput_tasks_per_sec": 24.93,
+        "avg_e2e_latency_seconds": 0.6937,
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "node-gpu-rig": 10,
+          "node-cpu-server": 10,
+          "node-laptop": 10,
+          "node-edge-mini": 10
+        },
+        "node_utilization": {
+          "node-gpu-rig": 0.25,
+          "node-cpu-server": 0.25,
+          "node-laptop": 0.25,
+          "node-edge-mini": 0.25
+        },
+        "failures": 0,
+        "reassignments": 0
+      }
+    ]
+  }
+}
