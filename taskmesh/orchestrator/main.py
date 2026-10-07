@@ -59,7 +59,7 @@ def main() -> None:
         cfg.task_lease_seconds = args.lease_seconds
 
     app = create_app(config=cfg)
-    uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="info")
+    uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="info", use_colors=False)
 
 
 if __name__ == "__main__":
