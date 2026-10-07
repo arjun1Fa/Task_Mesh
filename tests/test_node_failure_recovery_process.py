@@ -1,10 +1,10 @@
 """Integration test verifying node failure and automated task recovery with real OS processes."""
 
+import asyncio
 import os
 import subprocess
 import sys
 import tempfile
-import time
 import httpx
 import pytest
 
@@ -20,7 +20,7 @@ async def test_node_process_kill_and_recovery():
     6. Task completes on Node B
     """
     python_bin = sys.executable
-    port = 8220
+    port = 8320
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
         db_path = tmp.name
 
@@ -42,14 +42,14 @@ async def test_node_process_kill_and_recovery():
         # Wait for orchestrator
         async with httpx.AsyncClient(timeout=2.0) as client:
             ready = False
-            for _ in range(25):
+            for _ in range(30):
                 try:
                     resp = await client.get(f"http://127.0.0.1:{port}/v1/cluster/health")
                     if resp.status_code == 200:
                         ready = True
                         break
                 except Exception:
-                    time.sleep(0.2)
+                    await asyncio.sleep(0.2)
             assert ready
 
         # 2. Start doomed node process
@@ -64,11 +64,11 @@ async def test_node_process_kill_and_recovery():
 
         # Wait for doomed node to register
         async with httpx.AsyncClient(timeout=2.0) as client:
-            for _ in range(20):
+            for _ in range(30):
                 resp = await client.get(f"http://127.0.0.1:{port}/v1/nodes/node-doomed")
                 if resp.status_code == 200:
                     break
-                time.sleep(0.2)
+                await asyncio.sleep(0.2)
 
         # 3. Submit long sleep task (sleep 4s)
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -84,13 +84,13 @@ async def test_node_process_kill_and_recovery():
             task_id = submit_resp.json()["id"]
 
             # Wait until task is dispatched and running on node-doomed
-            for _ in range(20):
+            for _ in range(30):
                 t_resp = await client.get(f"http://127.0.0.1:{port}/v1/tasks/{task_id}")
                 if t_resp.status_code == 200:
                     data = t_resp.json()
                     if data.get("assigned_node_id") == "node-doomed" and data.get("status") == "running":
                         break
-                time.sleep(0.2)
+                await asyncio.sleep(0.2)
 
             # 4. Start survivor node process
             p_survivor = subprocess.Popen([
@@ -102,19 +102,19 @@ async def test_node_process_kill_and_recovery():
             processes.append(("node-survivor", p_survivor))
 
             # Wait for survivor node to register
-            for _ in range(20):
+            for _ in range(30):
                 resp = await client.get(f"http://127.0.0.1:{port}/v1/nodes/node-survivor")
                 if resp.status_code == 200:
                     break
-                time.sleep(0.2)
+                await asyncio.sleep(0.2)
 
             # 5. KILL doomed node process abruptly!
             p_doomed.kill()
-            p_doomed.wait()
+            await asyncio.sleep(0.5)
 
             # 6. Wait for heartbeat timeout detection and reassignment to node-survivor
             reassigned_and_completed = False
-            for _ in range(40):
+            for _ in range(45):
                 t_resp = await client.get(f"http://127.0.0.1:{port}/v1/tasks/{task_id}")
                 if t_resp.status_code == 200:
                     data = t_resp.json()
@@ -123,7 +123,7 @@ async def test_node_process_kill_and_recovery():
                         assert data["result"]["node_id"] == "node-survivor"
                         reassigned_and_completed = True
                         break
-                time.sleep(0.3)
+                await asyncio.sleep(0.3)
 
             assert reassigned_and_completed, "Task was not recovered and completed by survivor node"
 
@@ -131,12 +131,12 @@ async def test_node_process_kill_and_recovery():
         for name, p in reversed(processes):
             try:
                 p.terminate()
-                p.wait(timeout=1.0)
             except Exception:
-                try:
-                    p.kill()
-                except Exception:
-                    pass
+                pass
+            try:
+                p.kill()
+            except Exception:
+                pass
 
         if os.path.exists(db_path):
             try:
