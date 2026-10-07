@@ -1,12 +1,13 @@
-"""Reproducible benchmark suite comparing TaskMesh scheduling policies.
+"""SCHEDULER MICROBENCHMARK
+
+Isolated scheduling policy microbenchmark comparing algorithm decision latency,
+throughput, and work allocation across simulated heterogeneous nodes.
 
 Compares:
 1. Round Robin
 2. Least Loaded
 3. Highest Bid
 4. TaskMesh Adaptive (EWMA + DRR + MWU + Q-learning)
-
-Outputs machine-readable metrics (throughput, latency, fairness CV, allocation share).
 """
 
 import asyncio
