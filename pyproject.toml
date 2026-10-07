@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taskmesh"
+version = "0.2.0"
+description = "A lightweight distributed multi-node task orchestration and adaptive scheduling system for heterogeneous machines"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    {name = "TaskMesh Team"}
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+    "pydantic>=2.6.0",
+    "websockets>=12.0",
+    "httpx>=0.27.0",
+    "psutil>=5.9.0",
+    "numpy>=1.26.0",
+]
+
+[project.optional-dependencies]
+ai = [
+    "torch>=2.0.0",
+    "ultralytics>=8.0.0",
+    "opencv-python>=4.8.0",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.scripts]
+taskmesh = "taskmesh.orchestrator.main:main"
+taskmesh-server = "taskmesh.orchestrator.main:main"
+taskmesh-node = "taskmesh.node.main:main"
+taskmesh-cluster = "taskmesh.cluster.dev_cluster:main"
+taskmeshctl = "taskmesh.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["taskmesh*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
