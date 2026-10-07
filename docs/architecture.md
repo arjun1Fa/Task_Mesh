@@ -1,109 +1,70 @@
-# Architecture
+# TaskMesh Distributed Architecture
 
-TaskMesh is organized around a coordinator-style runtime with deliberately narrow interfaces.
+TaskMesh is an asynchronous distributed task orchestration and adaptive scheduling system for heterogeneous machine clusters across local IP networks.
 
-## Component ownership
+## Core Design Principles
 
-| Component | Owns | Does not own |
-|---|---|---|
-| `internal/core` | task data, lifecycle states, validation, result types | network, storage, scheduling |
-| `internal/api` | HTTP decoding, routing, response formatting | task execution decisions |
-| `internal/runtime` | orchestration and lifecycle transitions | business task implementation |
-| `internal/scheduler` | time-based eligibility | task execution |
-| `internal/queue` | ready-task ordering and waiting | persistence or retries |
-| `internal/worker` | concurrency and handler registry | task admission policy |
-| `internal/retry` | attempt count and backoff calculation | task persistence |
-| `internal/storage` | task state durability | worker scheduling |
-| `internal/dlq` | failed-task isolation and recovery payload | retry decision |
-| `internal/idempotency` | submission-key lookup | task execution |
-| `internal/observability` | counters/events | orchestration decisions |
-| `internal/config` | typed startup configuration | application logic |
+1. **Separation of Concerns**:
+   - **Orchestration**: Global control plane (`taskmesh.orchestrator.runtime`), task persistence, heartbeat/telemetry monitoring, and fault recovery.
+   - **Scheduling**: Decision pipeline (`taskmesh.scheduler`) selecting optimal compute nodes through multi-stage adaptive policies.
+   - **Execution**: Local worker pools on compute nodes (`taskmesh.node.worker_pool`) executing isolated handlers without blocking the event loop.
+2. **Network Decoupling via WebSockets**: Nodes connect over persistent full-duplex WebSockets using typed JSON protocol envelopes (`ProtocolMessage`), avoiding synchronous RPC polling.
+3. **Lease-Based Task Ownership**: Assignments are guarded by task attempts (`task_id-attempt_id`) and expiration leases to prevent stale execution or duplicate retries during network partitions.
 
-## End-to-end lifecycle
+## System Components
 
-~~~text
-queued
-  |
-  +-------- scheduled --------+
-  |                           | due
-  |                           v
-  +-----------------------> queued
-                              |
-                              v
-                           running
-                              |
-                 +------------+------------+
-                 |                         |
-              success                    error
-                 |                         |
-                 v                         v
-             succeeded                 retrying
-                                           |
-                                  attempts remain?
-                                      /                                           yes       no
-                                     |         |
-                                     +-- run   v
-                                           dead_letter
-~~~
+```mermaid
+graph TD
+    User([Client / taskmeshctl]) -->|HTTP / REST| API[FastAPI Server]
+    API --> RT[OrchestratorRuntime]
+    
+    subgraph Orchestrator [TaskMesh Orchestrator]
+        RT --> Repo[(TaskRepository)]
+        RT --> Queue[PriorityQueue]
+        RT --> Reg[NodeRegistry]
+        RT --> DLQ[DLQManager]
+        RT --> Checkpoints[CheckpointManager]
+        RT --> Sched[AdaptiveScheduler]
+        
+        subgraph SchedPipeline [Adaptive Scheduling Layers]
+            Sched --> Elig[Eligibility Filter]
+            Elig --> Scoring[Base + EWMA Score]
+            Scoring --> DRR[Adaptive DRR Fairness]
+            DRR --> Bidding[Contract-Net Bidding]
+            Bidding --> MWU[MWU Factor Adapter]
+            MWU --> RL[Tabular Q-Learning]
+        end
+    end
 
-Cancellation may terminate a scheduled task before it becomes queued. A running task is associated with an active RunID so the runtime can cancel its execution context.
+    RT <-->|WebSocket /v1/ws/nodes| NodeA[Node Agent A - GPU]
+    RT <-->|WebSocket /v1/ws/nodes| NodeB[Node Agent B - CPU]
+    RT <-->|WebSocket /v1/ws/nodes| NodeC[Node Agent C - Edge]
 
-## Why RunID exists
+    subgraph NodeAgent [Node Agent Architecture]
+        WP[WorkerPool]
+        HR[Handler Registry]
+        Profiler[Hardware Profiler / psutil]
+        WP --> HR
+    end
 
-ID identifies the logical task. RunID identifies one execution instance. This is required for recurring tasks, where the same logical task can fire many times.
+    NodeA --- NodeAgent
+    NodeB --- NodeAgent
+    NodeC --- NodeAgent
+```
 
-## Scheduler boundary
+## Lifecycle States
 
-The scheduler answers one question: "Which scheduled tasks are due now?"
+- `PENDING`: Task submitted and queued in `PriorityQueue`.
+- `SCHEDULED`: Delayed future task awaiting ticker trigger.
+- `RUNNING`: Dispatched to node under active lease (`TaskLease`).
+- `COMPLETED`: Successfully executed by node with output attached.
+- `FAILED`: Errored during execution.
+- `RETRYING`: Transient failure waiting for exponential backoff delay before requeue.
+- `CANCELLED`: Explicitly aborted by client (cancellation sent over network to node).
+- `DLQ`: Permanent failure after exhausting retry policy; isolated in Dead-Letter Queue.
 
-It does not execute work and does not know about HTTP. The runtime receives due tasks and decides how they enter the ready queue.
+## Fault Tolerance & Node Disconnect
 
-Recurring entries remain in the scheduler after an occurrence is emitted. The next occurrence is advanced relative to the current scheduler clock, preventing an unbounded burst after a long pause.
-
-## Queue boundary
-
-The TaskQueue interface is intentionally small:
-
-- Enqueue
-- Dequeue
-- Len
-
-BlockingTaskQueue adds DequeueContext. The worker pool detects that optional capability and uses it to wait efficiently instead of spinning.
-
-The managed runtime uses PriorityQueue. Higher priorities are dequeued first; equal priorities retain FIFO order.
-
-## Worker boundary
-
-An Executor handles one task:
-
-~~~go
-type Executor interface {
-    Execute(core.Task) error
-}
-~~~
-
-The runtime wraps execution with timeout, retry, cancellation bookkeeping and durable state transitions. Executor implementations therefore stay focused on business logic.
-
-## Persistence and recovery
-
-The runtime persists task state before placing work into the scheduler or queue. On startup it scans repository state and rebuilds:
-
-- scheduled tasks into the scheduler;
-- queued, running and retrying tasks into the ready queue;
-- terminal tasks as-is.
-
-This is a deliberate recovery strategy for a single-node runtime.
-
-## Dynamic behavior
-
-Direct scaling is performed through POST /v1/workers.
-
-Autoscaling is optional. It samples queue depth and adjusts the worker target inside MinWorkers and MaxWorkers using HighWatermark and LowWatermark.
-
-Scheduling is dynamic through schedule, reschedule and cancellation operations.
-
-## Distributed boundary
-
-The current implementation is a complete single-process execution engine. It is not a multi-node cluster: there is no leader election, distributed lease, shared queue claim protocol or consensus layer.
-
-Those concerns should be implemented as explicit adapters around durable storage and queue boundaries rather than hidden inside the core runtime.
+1. **Heartbeat Timeout**: The Orchestrator monitors `last_heartbeat` of every node. If silence exceeds `node_timeout_seconds` (default: 9.0s), the node is marked `OFFLINE`.
+2. **Task Recovery**: All tasks currently `RUNNING` on that node are retrieved. If the task supports checkpoints, the latest saved checkpoint state is attached. The task is reset to `PENDING` and re-queued.
+3. **Lease Expiration**: If a task does not report progress before its lease expires, the lease checker reclaims ownership and re-queues the task.
