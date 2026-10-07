@@ -1,60 +1,66 @@
-# Scheduling
+# TaskMesh Adaptive Scheduling Pipeline
 
-Scheduling is handled by internal/scheduler.
+TaskMesh routes tasks across heterogeneous machines using an adaptive multi-stage scheduling pipeline.
 
-## One-shot tasks
+## Pipeline Layers
 
-A task with a future ScheduledAt is persisted as scheduled and stays outside the ready queue until its timestamp is due.
+```text
+                  Incoming Task
+                        │
+                        ▼
+           [ 1. Eligibility Filter ]
+     (Checks GPU, RAM, tags, online status)
+                        │
+                        ▼
+          [ 2. Base & EWMA Score ]
+      (Hardware capacity × speed ratio)
+                        │
+                        ▼
+     [ 3. Deficit Round Robin (DRR) ]
+     (Adaptive quantum, starvation prevention)
+                        │
+                        ▼
+      [ 4. Contract-Net Bidding ]
+       (Suitability auction over 5 factors)
+                        │
+                        ▼
+   [ 5. MWU Online Weight Adaptation ]
+         (Hedge factor loss updates)
+                        │
+                        ▼
+      [ 6. Tabular Q-Learning ]
+  (Discretized state bucket -> candidate slot)
+                        │
+                        ▼
+            [ 7. Fallback Policy ]
+          (Deterministic fallback)
+                        │
+                        ▼
+             Selected Compute Node
+```
 
-The scheduler stores nanosecond timestamps internally, so sub-second accuracy is not lost by integer-second truncation.
+## 1. Candidate Eligibility
+Excludes nodes that are offline, draining, lacking required GPU hardware, or missing registered handlers for the requested `task_type`.
 
-## Recurring tasks
+## 2. Base Score & EWMA Multiplier
+- **Base Score**: Computed from CPU cores, clock speed, RAM capacity, and GPU presence.
+- **EWMA Multiplier**:
+  $$\text{ratio} = \frac{\text{expected\_duration}}{\text{actual\_duration}}$$
+  $$\text{multiplier}_{t+1} = \alpha \cdot \text{ratio} + (1 - \alpha) \cdot \text{multiplier}_t$$
+  $$\text{effective\_score} = \text{base\_score} \times \text{multiplier}$$
 
-A recurring task has:
+## 3. Deficit Round Robin Fairness
+Maintains a per-node deficit counter. Nodes accumulate quantum proportional to their effective score:
+$$\text{quantum}_i = \text{base\_quantum} \times \frac{\text{effective\_score}_i}{\text{mean\_effective\_score}}$$
+Weak nodes receive fairness correction when their deficit balance accumulates.
 
-- ScheduledAt: the first occurrence;
-- RepeatEvery: a positive duration.
+## 4. Contract-Net Bidding & MWU
+Suitability bids combine 5 factors: CPU, GPU, load, latency, reliability:
+$$\text{Bid}_i = \sum_{k=1}^5 w_k \cdot \text{Factor}_{i,k}$$
+Weights are updated after task outcome using Multiplicative Weight Update:
+$$w_k(t+1) = w_k(t) \cdot \exp(-\eta \cdot \text{loss}_k)$$
 
-When an occurrence becomes due:
-
-1. the scheduler emits the current task;
-2. the recurring item remains registered;
-3. the next occurrence is calculated;
-4. the runtime gives that occurrence a fresh RunID;
-5. the occurrence enters the ready queue.
-
-The logical task ID remains stable.
-
-## Dynamic changes
-
-The runtime supports:
-
-- scheduling a previously created task;
-- changing its schedule;
-- changing a recurring task into a one-shot schedule by supplying repeat = 0 through the runtime API;
-- canceling a schedule.
-
-The scheduler itself owns schedule membership. The repository owns durable lifecycle state.
-
-## Missed occurrences
-
-TaskMesh does not replay every missed interval after downtime. The next occurrence is advanced into the future relative to the current scheduler clock.
-
-This prevents a large backlog of stale recurrence executions after a long process pause.
-
-A future durable cron implementation could add an explicit catch-up policy, but catch-up should be a documented policy rather than an accidental side effect.
-
-## Testing
-
-Scheduler.New accepts a Clock function. Tests can supply a deterministic clock, making Due, reschedule and recurrence logic testable without real-time sleeps.
-
-## Public scheduler operations
-
-- Schedule
-- Reschedule
-- Cancel
-- Due
-- Pending
-- Len
-
-The scheduler is deliberately unaware of HTTP, workers and persistence.
+## 5. Tabular Q-Learning
+State is discretized into 3 buckets: `(score_bucket, load_bucket, priority_bucket)`.
+Actions are candidate ranking slots (0: top bid, 1: second bid, 2: third bid).
+This bounded action space ensures stability regardless of dynamic node joins or leaves.
