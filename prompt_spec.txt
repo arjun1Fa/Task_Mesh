@@ -1,0 +1,68 @@
+<USER_REQUEST>
+The attached PPTX violates my design spec. Rebuild it with python-pptx (same content and slide order). Write ONE script, build.py, with a component library at the top, and generate every slide from it. Do not reuse the old styling or shapes.
+
+=== TEXT SIZE (HIGHEST PRIORITY) ===
+This is shown on a classroom projector. Text must be readable from the back row.
+- Title: 34pt bold
+- Section label: 14pt bold caps
+- Body text / bullets: 20pt (absolute minimum 18pt)
+- Card headings: 22pt bold
+- Labels inside diagrams (node text, arrow labels, table cells): 16pt minimum
+- Captions, source lines, footers, slide numbers: 14pt minimum
+- Big metric numbers: 72pt
+- NOTHING below 14pt anywhere, for any reason. No 8-11pt text.
+- If content does not fit at these sizes: (1) shorten the wording to key phrases, (2) move detail into speaker notes (slide.notes_slide), (3) split into two slides. NEVER shrink the font to make it fit. The deck may grow beyond 26 slides.
+- Max ~40 words of body text per slide, outside diagrams. Prefer short phrases over sentences.
+- Set word_wrap=True, auto_size=NONE, explicit font size on every run, and explicit margins on every text frame.
+
+=== CANVAS & THEME ===
+- 13.333 x 7.5 in. Light theme: background #F7F5F0 on every content slide. Charcoal #1A1A1A only on the 3 section dividers.
+- Palette (nothing else): ink #1A1A1A, grey #6B6B6B, light surface #ECEAE4, border #CFCBC2, ASET blue #1F4E8C, Flocky teal #0F6B6B, DATOR orange #C9772E, failure red #B04A4A.
+- Paper accents only on slides about that paper. Intro, concepts, roadmap, comparison and conclusion slides stay neutral, with only small paper tags. No solid bright-filled banners. Accent = thin bars, outlines, key numbers, small labels, at most a 6% tint fill.
+- Flocky = teal (not green). No random yellow/green/pink.
+- Font: Calibri only, bold or regular.
+
+=== LAYOUT GRID ===
+- Margins 0.6 in. Same positions on every content slide: section label (0.6, 0.4), title (0.6, 0.75), slide number bottom-right, source line bottom-left.
+- Content area: y from 1.7 to 6.8 in. Use it fully. Scale cards up to fill the space, no empty bottom halves.
+- Use at most 3-4 cards per row. Bigger cards, fewer of them.
+
+=== COMPONENT HELPERS (every slide uses ONLY these) ===
+- add_title(slide, section, title)
+- card(slide, x, y, w, h, heading, body, style='light'|'dark'|'accent', accent=None): ROUNDED_RECTANGLE with a fixed adjustment value, 1pt border, 0.2 in padding, 0.07 in left bar
+- node(slide, x, y, w, h, title, sub=None, state='normal'|'active'|'failed', accent=None): same rounded rect for every system/process/stage box
+- net_node(slide, cx, cy, state, accent): circle, 0.4 in diameter, one style everywhere
+- link(slide, a, b, active=False, accent=None): thin grey line, or accent line if active
+- arrow(slide, a, b, kind='solid'|'dashed'|'red'|'curved'): real connector from shape edge to shape edge, 2pt, ONE arrowhead style added through XML (a:tailEnd type="triangle"). Never use text arrows like ↓ or →.
+- metric(slide, x, y, number, label, source, accent)
+- add_footer(slide, n, source=None)
+
+=== SPECIFIC FIXES ===
+- Slide 14: real node-link local-neighbourhood diagram with net_node() and link(): 7+ nodes, one selected, local links highlighted, rest greyed. No central controller.
+- Slide 21: A→B→C normal, A→B×→C failure (red), A→D→C recovery (orange), large nodes (min 1.8 x 1.0 in), 16pt+ labels.
+- Slide 9: DQN diagram fully inside the margins.
+- Slides 2, 3, 13, 15, 22: neutral colors only.
+- Section dividers (before slides 5, 11, 17): charcoal, large numeral, subtle node/line motif in that paper's accent.
+- Comparison slide: 3 equal-width cards, 18pt+ text; split into 2 slides if needed.
+- Use only numbers already in the deck (>97%, 84%, T=25 s). No invented charts.
+
+=== MANDATORY QA LOOP ===
+1. Run build.py, convert to PDF with LibreOffice, render every slide to PNG, and LOOK at each one.
+2. Write check.py that opens the PPTX and fails if it finds ANY of:
+   - a run with font size < 14pt or with no explicit size
+   - a shape extending outside the slide or inside the 0.6 in margin
+   - text likely overflowing its box (estimate with PIL ImageFont and the Calibri/Carlito metrics, wrapping at the box width minus padding)
+   - title / slide number / section label positions that differ between content slides
+   - any color outside the palette
+3. Fix everything and repeat steps 1-2 until check.py reports zero problems and the images look clean.
+4. Only then deliver the final PPTX, and tell me the final slide count.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-07T23:34:14+05:30.
+
+The user's current state is as follows:
+Active Document: c:\Malenia\TASK_MESH\.gitignore (LANGUAGE_UNSPECIFIED)
+Cursor is on line: 1
+Other open documents:
+- c:\Malenia\TASK_MESH\.gitignore (LANGUAGE_UNSPECIFIED)
+</ADDITIONAL_METADATA>
