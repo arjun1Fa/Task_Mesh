@@ -39,6 +39,13 @@ class SchedulerMode(str, Enum):
     ADAPTIVE = "adaptive"
 
 
+class OffloadPolicy(str, Enum):
+    """Policy governing local vs wireless remote execution."""
+    LOCAL_ONLY = "local_only"
+    WIRELESS_ALLOWED = "wireless_allowed"
+    REMOTE_ALLOWED = "remote_allowed"
+
+
 class MessageType(str, Enum):
     """Typed WebSocket protocol message types."""
     REGISTER_NODE = "register_node"
@@ -58,4 +65,9 @@ class MessageType(str, Enum):
     TASK_CANCEL = "task_cancel"
     TASK_CANCELLED = "task_cancelled"
     NODE_DRAIN = "node_drain"
+    PING = "ping"
+    PONG = "pong"
+    DISCOVERY_BEACON = "discovery_beacon"
+    BINARY_PAYLOAD_CHUNK = "binary_payload_chunk"
     ERROR = "error"
+
