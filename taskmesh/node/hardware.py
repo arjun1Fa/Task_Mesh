@@ -7,7 +7,15 @@ import psutil
 from taskmesh.core.models import NodeCapabilities, NodeTelemetry
 
 
-def profile_hardware(supported_handlers: List[str], tags: List[str]) -> NodeCapabilities:
+def profile_hardware(
+    supported_handlers: List[str],
+    tags: List[str],
+    ip_address: Optional[str] = None,
+    hostname: Optional[str] = None,
+    port: Optional[int] = None,
+    is_local: bool = False,
+    models_loaded: Optional[List[str]] = None,
+) -> NodeCapabilities:
     """Profiles local host machine hardware capabilities."""
     cpu_cores = psutil.cpu_count(logical=True) or 1
     cpu_freq = psutil.cpu_freq()
@@ -43,10 +51,24 @@ def profile_hardware(supported_handlers: List[str], tags: List[str]) -> NodeCapa
         supported_handlers=supported_handlers,
         tags=tags,
         worker_capacity=max(2, min(cpu_cores, 16)),
+        ip_address=ip_address,
+        hostname=hostname or platform.node(),
+        port=port or 8000,
+        is_local=is_local,
+        models_loaded=models_loaded or ["yolov8n"],
     )
 
 
-def collect_telemetry(node_id: str, active_tasks: int, queued_tasks: int) -> NodeTelemetry:
+def collect_telemetry(
+    node_id: str,
+    active_tasks: int,
+    queued_tasks: int,
+    rtt_ms_ewma: float = 0.0,
+    upload_mbps_ewma: float = 0.0,
+    download_mbps_ewma: float = 0.0,
+    transfer_failures: int = 0,
+    last_transfer_time_ms: float = 0.0,
+) -> NodeTelemetry:
     """Collects real-time resource utilization snapshot."""
     cpu_p = psutil.cpu_percent(interval=None)
     ram_p = psutil.virtual_memory().percent
@@ -70,5 +92,11 @@ def collect_telemetry(node_id: str, active_tasks: int, queued_tasks: int) -> Nod
         gpu_memory_used_mb=gpu_mem,
         active_tasks=active_tasks,
         queued_tasks=queued_tasks,
-        network_latency_ms=2.5,
+        network_latency_ms=rtt_ms_ewma if rtt_ms_ewma > 0 else 2.5,
+        rtt_ms_ewma=rtt_ms_ewma,
+        upload_mbps_ewma=upload_mbps_ewma,
+        download_mbps_ewma=download_mbps_ewma,
+        transfer_failures=transfer_failures,
+        last_transfer_time_ms=last_transfer_time_ms,
     )
+
