@@ -4,12 +4,13 @@ from contextlib import asynccontextmanager
 import json
 import logging
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from taskmesh.core.config import OrchestratorConfig
-from taskmesh.core.enums import MessageType, NodeStatus, SchedulerMode, TaskStatus
+from taskmesh.core.enums import MessageType, NodeStatus, OffloadPolicy, SchedulerMode, TaskStatus
+
 from taskmesh.core.errors import TaskNotFoundError
 from taskmesh.core.models import NodeProfile, Task, TaskCreate
 from taskmesh.orchestrator.runtime import OrchestratorRuntime
@@ -76,6 +77,49 @@ def create_app(
     @app.post("/v1/tasks", response_model=Task, status_code=201)
     async def submit_task(req: TaskCreate) -> Task:
         return await rt.submit_task(req)
+
+    @app.post("/v1/tasks/binary", response_model=Task, status_code=201)
+    async def submit_binary_task(
+        request: Request,
+        task_type: str = Query("image_inference"),
+        model: str = Query("yolov8n"),
+        priority: int = Query(0),
+        offload_policy: str = Query("wireless_allowed"),
+        requires_gpu: bool = Query(False),
+    ) -> Task:
+        content_type = request.headers.get("content-type", "")
+        binary_data = b""
+        if "multipart/form-data" in content_type:
+            form = await request.form()
+            file_item = form.get("file")
+            if hasattr(file_item, "read"):
+                binary_data = await file_item.read()
+            elif isinstance(file_item, (bytes, bytearray)):
+                binary_data = bytes(file_item)
+        else:
+            binary_data = await request.body()
+
+        if not binary_data:
+            raise HTTPException(status_code=400, detail="Missing binary payload data in request body")
+
+        policy_val = OffloadPolicy(offload_policy) if offload_policy in OffloadPolicy._value2member_map_ else OffloadPolicy.WIRELESS_ALLOWED
+        req = TaskCreate(
+            task_type=task_type,
+            payload={"model": model, "mime_type": content_type or "image/jpeg"},
+            priority=priority,
+            requires_gpu=requires_gpu,
+            offload_policy=policy_val,
+        )
+        return await rt.submit_task(req, binary_data=binary_data)
+
+    @app.get("/v1/tasks/{task_id}/payload")
+    async def get_task_payload(task_id: str) -> Response:
+        payload_data = await rt.payload_store.get_payload(task_id)
+        if not payload_data:
+            raise HTTPException(status_code=404, detail=f"No binary payload found for task {task_id}")
+        meta = await rt.payload_store.get_meta(task_id)
+        media_type = meta.mime_type if meta else "application/octet-stream"
+        return Response(content=payload_data, media_type=media_type)
 
     @app.get("/v1/tasks", response_model=List[Task])
     async def list_tasks(
@@ -159,6 +203,10 @@ def create_app(
         resp: Dict[str, Any] = {
             "mode": rt.config.scheduler_mode.value,
             "fairness_cv": await rt.get_fairness_metric(),
+            "wireless_metrics": {
+                nid: m.model_dump(mode="json")
+                for nid, m in rt.network_estimator._metrics.items()
+            },
         }
         from taskmesh.scheduler.adaptive import AdaptiveScheduler
         if isinstance(rt.scheduler, AdaptiveScheduler):
@@ -170,6 +218,7 @@ def create_app(
     @app.get("/v1/scheduler/decisions")
     async def scheduler_decisions(limit: int = Query(50, ge=1, le=200)) -> List[Any]:
         return await rt.get_decisions(limit=limit)
+
 
     # ---------------------------------------------------------
     # REST API Routes: DLQ
