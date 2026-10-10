@@ -31,10 +31,35 @@ def handle_task_cmd(args: argparse.Namespace, base_url: str) -> None:
                 "payload": payload,
                 "priority": args.priority,
                 "requires_gpu": args.gpu,
+                "offload_policy": getattr(args, "policy", "wireless_allowed"),
             }
             resp = client.post("/v1/tasks", json=req)
             if resp.status_code == 201:
                 print("Task submitted successfully:")
+                print_json(resp.json())
+            else:
+                print(f"Error ({resp.status_code}): {resp.text}", file=sys.stderr)
+
+        elif args.task_action == "submit-image":
+            import os
+            image_path = args.image
+            if not os.path.exists(image_path):
+                print(f"Error: Image file not found: {image_path}", file=sys.stderr)
+                sys.exit(1)
+            with open(image_path, "rb") as f:
+                img_bytes = f.read()
+
+            policy = "local_only" if args.local_only else (args.policy or "wireless_allowed")
+            params = {
+                "task_type": "image_inference",
+                "model": args.model,
+                "priority": args.priority,
+                "offload_policy": policy,
+                "requires_gpu": args.gpu,
+            }
+            resp = client.post("/v1/tasks/binary", params=params, content=img_bytes, headers={"Content-Type": "image/jpeg"})
+            if resp.status_code == 201:
+                print("Image inference task submitted successfully:")
                 print_json(resp.json())
             else:
                 print(f"Error ({resp.status_code}): {resp.text}", file=sys.stderr)
@@ -71,6 +96,24 @@ def handle_task_cmd(args: argparse.Namespace, base_url: str) -> None:
 
 
 def handle_node_cmd(args: argparse.Namespace, base_url: str) -> None:
+    if getattr(args, "node_action", None) == "discover":
+        from taskmesh.discovery.broadcast import DiscoveryClient
+        timeout = getattr(args, "timeout", 2.0)
+        print(f"Scanning local Wi-Fi / LAN for TaskMesh nodes ({timeout}s)...")
+        nodes = DiscoveryClient.discover_sync(timeout_seconds=timeout)
+        if not nodes:
+            print("No TaskMesh nodes discovered via UDP broadcast.")
+        else:
+            print(f"Discovered {len(nodes)} TaskMesh node(s):")
+            print_json([n.model_dump(mode="json") for n in nodes])
+        return
+
+    if getattr(args, "node_action", None) == "connect":
+        target = args.target
+        print(f"To register node with orchestrator at {target}, execute:")
+        print(f"  taskmesh node --orchestrator {target}")
+        return
+
     with get_client(base_url) as client:
         if args.node_action == "list":
             resp = client.get("/v1/nodes")
@@ -93,6 +136,7 @@ def handle_node_cmd(args: argparse.Namespace, base_url: str) -> None:
                 print_json(resp.json())
             else:
                 print(f"Error: {resp.text}", file=sys.stderr)
+
 
 
 def handle_cluster_cmd(args: argparse.Namespace, base_url: str) -> None:
@@ -154,7 +198,16 @@ def main() -> None:
     t_submit.add_argument("--type", required=True, help="Task type (e.g. log, cpu_test, image_inference)")
     t_submit.add_argument("--payload", default="{}", help="JSON payload")
     t_submit.add_argument("--priority", type=int, default=0, help="Task priority")
+    t_submit.add_argument("--policy", default="wireless_allowed", choices=["local_only", "wireless_allowed", "remote_allowed"], help="Offload policy")
     t_submit.add_argument("--gpu", action="store_true", help="Requires GPU")
+
+    t_img = task_sub.add_parser("submit-image", help="Submit an image file for wireless AI inference")
+    t_img.add_argument("--image", required=True, help="Path to local image file")
+    t_img.add_argument("--model", default="yolov8n", help="Model identifier (default: yolov8n)")
+    t_img.add_argument("--priority", type=int, default=5, help="Task priority")
+    t_img.add_argument("--local-only", action="store_true", help="Force execution on local node only")
+    t_img.add_argument("--policy", default="wireless_allowed", choices=["local_only", "wireless_allowed", "remote_allowed"], help="Offload policy")
+    t_img.add_argument("--gpu", action="store_true", help="Requires GPU")
 
     t_get = task_sub.add_parser("get", help="Get task by ID")
     t_get.add_argument("task_id", help="Task ID")
@@ -175,6 +228,17 @@ def main() -> None:
     n_insp.add_argument("node_id", help="Node ID")
     n_drain = node_sub.add_parser("drain", help="Drain node")
     n_drain.add_argument("node_id", help="Node ID")
+
+    n_disc = node_sub.add_parser("discover", help="Discover TaskMesh nodes on local Wi-Fi / LAN")
+    n_disc.add_argument("--timeout", type=float, default=2.0, help="Discovery timeout in seconds")
+
+    n_conn = node_sub.add_parser("connect", help="Node connection instructions")
+    n_conn.add_argument("target", help="Target orchestrator URL or LAN IP")
+
+    # Shortcut: taskmeshctl discover
+    disc_p = subparsers.add_parser("discover", help="Discover TaskMesh nodes on local Wi-Fi / LAN")
+    disc_p.add_argument("--timeout", type=float, default=2.0, help="Discovery timeout in seconds")
+
 
     # Cluster commands
     cluster_p = subparsers.add_parser("cluster", help="Cluster operations")
@@ -201,8 +265,11 @@ def main() -> None:
             handle_task_cmd(args, args.url)
         elif args.command == "node":
             handle_node_cmd(args, args.url)
+        elif args.command == "discover":
+            handle_node_cmd(argparse.Namespace(node_action="discover", timeout=getattr(args, "timeout", 2.0)), args.url)
         elif args.command == "cluster":
             handle_cluster_cmd(args, args.url)
+
         elif args.command == "scheduler":
             handle_scheduler_cmd(args, args.url)
         elif args.command == "dlq":
