@@ -33,6 +33,8 @@ class RoundRobinScheduler:
             policy_used=SchedulerMode.ROUND_ROBIN,
             candidate_node_ids=[n.id for n in eligible],
             candidate_scores={n.id: n.effective_score for n in eligible},
+            offload_decision="local" if selected.capabilities.is_local else "remote",
+            offload_reason=f"Round robin selection: {'local execution' if selected.capabilities.is_local else 'remote execution'}",
         )
 
 
@@ -61,6 +63,8 @@ class LeastLoadedScheduler:
             policy_used=SchedulerMode.LEAST_LOADED,
             candidate_node_ids=[n.id for n in eligible],
             candidate_scores={n.id: n.effective_score for n in eligible},
+            offload_decision="local" if selected.capabilities.is_local else "remote",
+            offload_reason=f"Least loaded selection: {'local' if selected.capabilities.is_local else 'remote'} node with lowest resource utilization",
         )
 
 
@@ -87,4 +91,7 @@ class HighestBidScheduler:
             candidate_node_ids=[n.id for n in eligible],
             candidate_scores={n.id: n.effective_score for n in eligible},
             bids=bids,
+            offload_decision="local" if selected.capabilities.is_local else "remote",
+            offload_reason=f"Highest bid selection: {'local' if selected.capabilities.is_local else 'remote'} bid={bids[selected.id]}",
         )
+
