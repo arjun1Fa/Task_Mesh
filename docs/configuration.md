@@ -28,14 +28,31 @@ Invalid integer, boolean or duration environment values fall back to the default
 | TASKMESH_AUTOSCALE_LOW | 0 | queue depth at/below which scale-down is allowed |
 | TASKMESH_AUTOSCALE_POLL | 1s | autoscaler polling interval |
 
-## Validation
+## Python TaskMesh Runtime & Wireless Configuration
 
-Config.Valid requires:
+In the Python system (`taskmesh/core/config.py`), configuration is managed via Pydantic settings with environment variable overrides:
 
-- non-empty data and HTTP paths;
-- positive worker count;
-- positive retry attempts and delay;
-- positive scheduler poll and task timeout;
-- a valid autoscale range and polling interval.
+### Wireless & Transport Settings
 
-Runtime normalization still provides safety defaults when Runtime is constructed directly in code rather than through config.Resolve.
+| Environment Variable / Config Key | Default | Description |
+|---|---|---|
+| `TASKMESH_MAX_PAYLOAD_SIZE_BYTES` | `52428800` (50 MB) | Maximum accepted binary inference payload size before early rejection |
+| `TASKMESH_CHUNK_SIZE_BYTES` | `65536` (64 KB) | WebSocket binary framing chunk size for streaming transport |
+| `TASKMESH_ENABLE_DISCOVERY` | `true` | Enables background UDP broadcast discovery beacon |
+| `TASKMESH_DISCOVERY_PORT` | `37020` | UDP port used for LAN node discovery beacons |
+| `TASKMESH_IS_LOCAL` | `false` | Marks a node agent as physically local to the orchestrator/client |
+| `TASKMESH_LAN_IP` | `null` (auto-detected) | Overrides automatic LAN IP resolution for node advertising |
+| `TASKMESH_DISCOVERY_BEACON_INTERVAL_S`| `5.0` | Interval in seconds between UDP broadcast beacons |
+| `TASKMESH_PROBE_INTERVAL_S` | `3.0` | Interval in seconds for WebSocket ping/pong RTT measurement |
+
+### Core Orchestrator Settings
+
+| Environment Variable / Config Key | Default | Description |
+|---|---|---|
+| `TASKMESH_HOST` | `0.0.0.0` | IP interface binding address for the FastAPI server |
+| `TASKMESH_PORT` | `8000` | HTTP/WebSocket listen port |
+| `TASKMESH_SCHEDULER_MODE` | `adaptive` | Scheduling algorithm (`adaptive`, `round_robin`, `least_loaded`, `highest_bid`) |
+| `TASKMESH_HEARTBEAT_TIMEOUT_SECONDS` | `10.0` | Time before an unresponsive node is marked OFFLINE |
+| `TASKMESH_LEASE_DURATION_SECONDS` | `30.0` | Duration of task execution lease before reassignment |
+| `TASKMESH_MAX_RETRIES` | `3` | Maximum automatic retries before moving task to Dead-Letter Queue (DLQ) |
+
