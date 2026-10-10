@@ -38,6 +38,13 @@ class OrchestratorConfig(BaseModel):
     # Security
     secure_mode: bool = Field(default_factory=lambda: os.getenv("TASKMESH_SECURE_MODE", "false").lower() == "true")
 
+    # Wireless & Payload Transfer
+    max_payload_size_bytes: int = Field(default_factory=lambda: int(os.getenv("TASKMESH_MAX_PAYLOAD_SIZE", str(50 * 1024 * 1024))))
+    chunk_size_bytes: int = Field(default_factory=lambda: int(os.getenv("TASKMESH_CHUNK_SIZE", "65536")))
+    enable_discovery: bool = Field(default_factory=lambda: os.getenv("TASKMESH_ENABLE_DISCOVERY", "true").lower() == "true")
+    discovery_port: int = Field(default_factory=lambda: int(os.getenv("TASKMESH_DISCOVERY_PORT", "37020")))
+    enable_local_execution: bool = Field(default_factory=lambda: os.getenv("TASKMESH_ENABLE_LOCAL_EXEC", "true").lower() == "true")
+
 
 class NodeConfig(BaseModel):
     node_id: str = Field(default_factory=lambda: os.getenv("TASKMESH_NODE_ID", f"node-{os.getpid()}"))
@@ -49,3 +56,13 @@ class NodeConfig(BaseModel):
     heartbeat_interval_seconds: float = Field(default_factory=lambda: float(os.getenv("TASKMESH_HEARTBEAT_INTERVAL", "3.0")))
     telemetry_interval_seconds: float = Field(default_factory=lambda: float(os.getenv("TASKMESH_TELEMETRY_INTERVAL", "5.0")))
     tags: str = Field(default_factory=lambda: os.getenv("TASKMESH_TAGS", "cpu,general"))
+
+    # Wireless & Discovery Configuration
+    max_payload_size_bytes: int = Field(default_factory=lambda: int(os.getenv("TASKMESH_MAX_PAYLOAD_SIZE", str(50 * 1024 * 1024))))
+    chunk_size_bytes: int = Field(default_factory=lambda: int(os.getenv("TASKMESH_CHUNK_SIZE", "65536")))
+    enable_discovery: bool = Field(default_factory=lambda: os.getenv("TASKMESH_ENABLE_DISCOVERY", "true").lower() == "true")
+    discovery_port: int = Field(default_factory=lambda: int(os.getenv("TASKMESH_DISCOVERY_PORT", "37020")))
+    is_local: bool = Field(default_factory=lambda: os.getenv("TASKMESH_IS_LOCAL", "false").lower() == "true")
+    lan_ip: Optional[str] = Field(default_factory=lambda: os.getenv("TASKMESH_LAN_IP", None))
+    lan_port: Optional[int] = Field(default_factory=lambda: int(os.getenv("TASKMESH_LAN_PORT", "0")) or None)
+
