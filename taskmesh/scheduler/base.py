@@ -2,13 +2,13 @@
 
 from typing import List, Protocol
 
-from taskmesh.core.enums import NodeStatus
+from taskmesh.core.enums import NodeStatus, OffloadPolicy
 from taskmesh.core.models import NodeProfile, Task
 from taskmesh.scheduler.decision import SchedulerDecision
 
 
 def filter_eligible_nodes(task: Task, nodes: List[NodeProfile]) -> List[NodeProfile]:
-    """Filters candidate nodes by online status, hardware requirements, and handler support."""
+    """Filters candidate nodes by online status, hardware requirements, offload policy, and handler support."""
     eligible = []
     for node in nodes:
         # 1. State must be ONLINE (DRAINING and OFFLINE are ineligible)
@@ -17,19 +17,24 @@ def filter_eligible_nodes(task: Task, nodes: List[NodeProfile]) -> List[NodeProf
 
         caps = node.capabilities
 
-        # 2. Handler support: if node explicitly lists handlers, task_type must be supported
+        # 2. Privacy & Offload Policy: local_only tasks can ONLY run on local node
+        if task.offload_policy in (OffloadPolicy.LOCAL_ONLY, "local_only"):
+            if not caps.is_local:
+                continue
+
+        # 3. Handler support: if node explicitly lists handlers, task_type must be supported
         if caps.supported_handlers and task.task_type not in caps.supported_handlers:
             continue
 
-        # 3. GPU requirement
+        # 4. GPU requirement
         if task.requires_gpu and not caps.has_gpu:
             continue
 
-        # 4. RAM requirement
+        # 5. RAM requirement
         if task.required_memory_mb > 0 and caps.ram_available_mb < task.required_memory_mb:
             continue
 
-        # 5. Required capability tags
+        # 6. Required capability tags
         if task.required_capabilities:
             if not all(tag in caps.tags for tag in task.required_capabilities):
                 continue
@@ -37,6 +42,7 @@ def filter_eligible_nodes(task: Task, nodes: List[NodeProfile]) -> List[NodeProf
         eligible.append(node)
 
     return eligible
+
 
 
 class Scheduler(Protocol):
