@@ -59,6 +59,15 @@ class PriorityQueue:
         async with self._lock:
             return len(self._heap)
 
+    @property
+    def size(self) -> int:
+        """Returns the current number of items in the queue (thread-safe snapshot)."""
+        return len(self._heap)
+
+    def qsize(self) -> int:
+        """Alias for size property."""
+        return len(self._heap)
+
     async def clear(self) -> None:
         async with self._lock:
             self._heap.clear()
