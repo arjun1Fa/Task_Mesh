@@ -29,9 +29,14 @@ def calculate_node_bid(
     else:
         load_factor = 0.8
 
-    # 4. Latency factor [0, 1]
-    if telemetry and telemetry.network_latency_ms > 0:
-        latency_factor = max(0.0, 1.0 - (telemetry.network_latency_ms / 200.0))
+    # 4. Latency & Network factor [0, 1]
+    if caps.is_local:
+        latency_factor = 1.0
+    elif telemetry and (telemetry.rtt_ms_ewma > 0 or telemetry.network_latency_ms > 0):
+        effective_rtt = telemetry.rtt_ms_ewma if telemetry.rtt_ms_ewma > 0 else telemetry.network_latency_ms
+        rtt_factor = max(0.0, 1.0 - (effective_rtt / 200.0))
+        bw_factor = min(1.0, telemetry.upload_mbps_ewma / 100.0) if telemetry.upload_mbps_ewma > 0 else 0.7
+        latency_factor = max(0.0, min(1.0, 0.7 * rtt_factor + 0.3 * bw_factor))
     else:
         latency_factor = 0.9
 
@@ -41,6 +46,7 @@ def calculate_node_bid(
         reliability_factor = node.total_completed / total_tasks
     else:
         reliability_factor = 0.95
+
 
     w_cpu = weights.get("cpu", 0.2)
     w_gpu = weights.get("gpu", 0.2)
