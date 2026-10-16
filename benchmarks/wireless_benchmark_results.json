@@ -1,0 +1,125 @@
+{
+  "benchmark": "TaskMesh Wireless Offloading Cost & Schedulers",
+  "timestamp": 1791404536.3210418,
+  "payload_size_cost_matrix": {
+    "50KB": {
+      "payload_size_kb": 50,
+      "local_estimate_ms": 135.0,
+      "remote_estimate_ms": 58.38,
+      "upload_ms": 10.24,
+      "remote_inference_ms": 28.0,
+      "download_ms": 0.14,
+      "offload_decision": "remote",
+      "offload_reason": "remote execution predicted faster (58.38ms < 135.0ms)",
+      "fastest_node": "wifi-gpu-rig"
+    },
+    "200KB": {
+      "payload_size_kb": 200,
+      "local_estimate_ms": 135.0,
+      "remote_estimate_ms": 89.1,
+      "upload_ms": 40.96,
+      "remote_inference_ms": 28.0,
+      "download_ms": 0.14,
+      "offload_decision": "remote",
+      "offload_reason": "remote execution predicted faster (89.1ms < 135.0ms)",
+      "fastest_node": "wifi-gpu-rig"
+    },
+    "500KB": {
+      "payload_size_kb": 500,
+      "local_estimate_ms": 135.0,
+      "remote_estimate_ms": 150.54,
+      "upload_ms": 102.4,
+      "remote_inference_ms": 28.0,
+      "download_ms": 0.14,
+      "offload_decision": "local",
+      "offload_reason": "local execution predicted faster or equal (135.0ms <= 150.54ms)",
+      "fastest_node": "local-laptop"
+    },
+    "1000KB": {
+      "payload_size_kb": 1000,
+      "local_estimate_ms": 135.0,
+      "remote_estimate_ms": 252.94,
+      "upload_ms": 204.8,
+      "remote_inference_ms": 28.0,
+      "download_ms": 0.14,
+      "offload_decision": "local",
+      "offload_reason": "local execution predicted faster or equal (135.0ms <= 252.94ms)",
+      "fastest_node": "local-laptop"
+    },
+    "2048KB": {
+      "payload_size_kb": 2048,
+      "local_estimate_ms": 135.0,
+      "remote_estimate_ms": 467.57,
+      "upload_ms": 419.43,
+      "remote_inference_ms": 28.0,
+      "download_ms": 0.14,
+      "offload_decision": "local",
+      "offload_reason": "local execution predicted faster or equal (135.0ms <= 467.57ms)",
+      "fastest_node": "local-laptop"
+    },
+    "5120KB": {
+      "payload_size_kb": 5120,
+      "local_estimate_ms": 135.0,
+      "remote_estimate_ms": 1096.72,
+      "upload_ms": 1048.58,
+      "remote_inference_ms": 28.0,
+      "download_ms": 0.14,
+      "offload_decision": "local",
+      "offload_reason": "local execution predicted faster or equal (135.0ms <= 1096.72ms)",
+      "fastest_node": "local-laptop"
+    }
+  },
+  "scheduler_comparison": {
+    "round_robin": {
+      "tasks_scheduled": 30,
+      "total_time_ms": 0.54,
+      "avg_decision_latency_ms": 0.018,
+      "node_distribution": {
+        "local-laptop": 10,
+        "wifi-gpu-rig": 10,
+        "wifi-edge-pi": 10
+      },
+      "offload_decisions": {
+        "local": 10,
+        "remote": 20
+      }
+    },
+    "least_loaded": {
+      "tasks_scheduled": 30,
+      "total_time_ms": 0.56,
+      "avg_decision_latency_ms": 0.0188,
+      "node_distribution": {
+        "wifi-gpu-rig": 30
+      },
+      "offload_decisions": {
+        "local": 0,
+        "remote": 30
+      }
+    },
+    "highest_bid": {
+      "tasks_scheduled": 30,
+      "total_time_ms": 0.58,
+      "avg_decision_latency_ms": 0.0195,
+      "node_distribution": {
+        "wifi-gpu-rig": 30
+      },
+      "offload_decisions": {
+        "local": 0,
+        "remote": 30
+      }
+    },
+    "taskmesh_adaptive": {
+      "tasks_scheduled": 30,
+      "total_time_ms": 1.54,
+      "avg_decision_latency_ms": 0.0512,
+      "node_distribution": {
+        "wifi-gpu-rig": 5,
+        "local-laptop": 25
+      },
+      "offload_decisions": {
+        "local": 25,
+        "remote": 5
+      }
+    }
+  }
+}

@@ -79,7 +79,10 @@ flowchart TD
 | **Primary/Standby Failover**| **IMPLEMENTED + TESTED** | Standby orchestrator polls snapshots, detects primary failure, self-promotes to primary; nodes auto-rotate to standby URL. |
 | **Workload Handlers** | **IMPLEMENTED + TESTED** | Workload-agnostic handlers: `log`, `sleep`, `cpu_test`, and optional AI inference `image_inference` with GPU capability gating. |
 | **CLI (`taskmeshctl`)** | **IMPLEMENTED + TESTED** | Full CLI for task submission, status, cancellation, retry, node inspection, draining, cluster health, scheduler explainability, and DLQ. |
-| **REST API** | **IMPLEMENTED + TESTED** | Production FastAPI endpoints with interactive Swagger/OpenAPI documentation. |
+| **Wireless Inference Layer** | **IMPLEMENTED + TESTED** | Real Wi-Fi AI offloading, WebSocket binary chunk framing (`TMCH`), SHA-256 verification, safe size limits, zero base64 overhead. |
+| **Zero-Dependency Discovery** | **IMPLEMENTED + TESTED** | UDP broadcast discovery on port 37020 with automatic LAN IP resolution and CLI discovery tools. |
+| **Network-Aware Cost Estimator** | **IMPLEMENTED + TESTED** | Real-time $T_{local}$ vs $T_{remote}$ comparison, EWMA RTT & bandwidth tracking, offload explainability telemetry. |
+| **Wireless Execution Policies** | **IMPLEMENTED + TESTED** | `LOCAL_ONLY`, `WIRELESS_ALLOWED`, `REMOTE_ALLOWED` task policies with strict eligibility enforcement. |
 | **PostgreSQL Backend** | **DESIGNED / PLANNED** | Database repository interface (`TaskRepository`) decouples domain from SQLite; PostgreSQL backend can be dropped in without domain changes. |
 
 ---
@@ -146,6 +149,41 @@ taskmesh-node --node-id node-laptop --url ws://192.168.1.100:8000/v1/ws/nodes --
 # Machine 3 (GPU Workstation - Secure mode)
 taskmesh-node --node-id node-gpu-rig --url ws://192.168.1.100:8000/v1/ws/nodes --workers 8 --secure --secret your-cluster-shared-secret
 ```
+
+---
+
+## Wireless Inference Sharing (Local Wi-Fi / LAN)
+
+TaskMesh extends distributed scheduling into a wireless-aware AI offloading layer. A client device (e.g., a laptop or camera on Wi-Fi) can offload heavy AI inference (YOLOv8) to another nearby node with GPU acceleration, while scheduling dynamically accounts for real-time Wi-Fi conditions ($RTT$, upload/download bandwidth, local vs remote cost).
+
+### Architecture & Protocol Highlights
+- **Zero-Dependency UDP Discovery**: Nodes broadcast presence on UDP port 37020; auto-discovers peers on local Wi-Fi.
+- **Pure WebSocket Binary Framing (`TMCH`)**: 48-byte header frames split large image files into chunks (default 64KB) with SHA-256 integrity verification, avoiding base64 serialization overhead.
+- **Cost-Aware Offloading Decisions**: Evaluates $T_{local}$ vs $T_{remote} = T_{upload} + RTT + T_{queue} + T_{infer} + T_{download}$ before delegating work. If network latency or image transfer size dominates, the task executes locally.
+- **Privacy Policies**: Tasks can be marked `local_only` (never offloaded), `wireless_allowed` (offloaded if faster), or `remote_allowed`.
+
+### CLI Commands for Wireless Operation
+
+```bash
+# 1. Discover nodes on the Wi-Fi network
+taskmesh node discover
+# Or via taskmeshctl:
+taskmeshctl discover
+
+# 2. Start orchestrator on Machine A (bind to LAN interface)
+taskmesh server --host 0.0.0.0 --port 8000
+
+# 3. Connect remote node on Machine B
+taskmesh node --orchestrator ws://192.168.1.100:8000
+
+# 4. Submit an image for AI inference over Wi-Fi
+taskmesh submit-image --file photo.jpg --policy wireless_allowed
+
+# 5. Run end-to-end physical Wi-Fi benchmark / verification
+python scripts/manual_wifi_test.py --orchestrator http://192.168.1.100:8000 --image photo.jpg
+```
+
+See [docs/wireless-inference.md](docs/wireless-inference.md) for full protocol specifications, mathematical formulations, and benchmarks.
 
 ---
 

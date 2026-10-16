@@ -6,11 +6,33 @@ import uuid
 
 from pydantic import BaseModel, Field, field_validator
 
-from taskmesh.core.enums import NodeStatus, TaskStatus
+from taskmesh.core.enums import NodeStatus, TaskStatus, OffloadPolicy
 
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class BinaryPayloadMeta(BaseModel):
+    """Metadata envelope for binary payload transport (e.g. images, tensors)."""
+    payload_id: str = Field(default_factory=lambda: f"payload_{uuid.uuid4().hex[:12]}")
+    task_id: str
+    attempt_id: Optional[str] = None
+    workload_type: str = "image_inference"
+    model_identifier: str = "yolov8n"
+    payload_size_bytes: int = 0
+    mime_type: str = "image/jpeg"
+    checksum_sha256: str = ""
+    compression: str = "none"
+    chunk_size_bytes: int = 65536
+    total_chunks: int = 1
+
+    # Future streaming extensions
+    stream_id: Optional[str] = None
+    frame_id: Optional[int] = None
+    sequence_number: Optional[int] = None
+    is_last_frame: bool = False
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class RetryPolicy(BaseModel):
@@ -68,6 +90,8 @@ class TaskCreate(BaseModel):
     preferred_capabilities: List[str] = Field(default_factory=list)
     retry_policy: RetryPolicy = Field(default_factory=RetryPolicy)
     supports_checkpoint: bool = False
+    offload_policy: OffloadPolicy = Field(default=OffloadPolicy.WIRELESS_ALLOWED)
+    binary_meta: Optional[BinaryPayloadMeta] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -97,6 +121,10 @@ class Task(BaseModel):
     required_capabilities: List[str] = Field(default_factory=list)
     preferred_capabilities: List[str] = Field(default_factory=list)
     supports_checkpoint: bool = False
+
+    # Wireless & Offloading Policy
+    offload_policy: OffloadPolicy = Field(default=OffloadPolicy.WIRELESS_ALLOWED)
+    binary_meta: Optional[BinaryPayloadMeta] = None
 
     # Retry & Fault Handling
     retry_policy: RetryPolicy = Field(default_factory=RetryPolicy)
@@ -140,6 +168,12 @@ class NodeCapabilities(BaseModel):
     supported_handlers: List[str] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
     worker_capacity: int = 4
+    # Wireless & Networking identification
+    ip_address: Optional[str] = None
+    hostname: Optional[str] = None
+    port: Optional[int] = None
+    is_local: bool = False
+    models_loaded: List[str] = Field(default_factory=list)
 
 
 class NodeTelemetry(BaseModel):
@@ -154,6 +188,13 @@ class NodeTelemetry(BaseModel):
     completed_tasks_total: int = 0
     failed_tasks_total: int = 0
     network_latency_ms: float = 0.0
+    # Wireless Telemetry
+    rtt_ms_ewma: float = 0.0
+    upload_mbps_ewma: float = 0.0
+    download_mbps_ewma: float = 0.0
+    transfer_failures: int = 0
+    last_transfer_time_ms: float = 0.0
+
 
 
 class NodeProfile(BaseModel):

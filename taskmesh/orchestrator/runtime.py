@@ -4,9 +4,11 @@ import asyncio
 from datetime import datetime, timezone
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional
 import uuid
 import websockets
+
 
 from taskmesh.checkpoint.manager import CheckpointManager
 from taskmesh.cluster.registry import NodeRegistry
@@ -42,6 +44,12 @@ from taskmesh.scheduler.baseline import (
 )
 from taskmesh.scheduler.decision import SchedulerDecision
 from taskmesh.security.hmac_auth import SecurityManager
+from taskmesh.transport.binary_protocol import (
+    create_binary_chunk_frame,
+    split_into_chunks,
+)
+from taskmesh.transport.payload_store import BinaryPayloadStore
+from taskmesh.wireless.estimator import NetworkEstimator
 
 logger = logging.getLogger("taskmesh.runtime")
 
@@ -52,6 +60,14 @@ async def _send_websocket_text(ws: Any, text: str) -> None:
         await ws.send_text(text)
     elif hasattr(ws, "send"):
         await ws.send(text)
+
+
+async def _send_websocket_bytes(ws: Any, data: bytes) -> None:
+    """Sends binary message frame across either FastAPI/Starlette WebSocket or client protocol."""
+    if hasattr(ws, "send_bytes"):
+        await ws.send_bytes(data)
+    elif hasattr(ws, "send"):
+        await ws.send(data)
 
 
 class OrchestratorRuntime:
@@ -70,9 +86,13 @@ class OrchestratorRuntime:
         self.dlq = DLQManager()
         self.checkpoints = CheckpointManager()
         self.security = SecurityManager(secret_key=self.config.join_token, secure_mode=self.config.secure_mode)
+        self.payload_store = BinaryPayloadStore(max_payload_size_bytes=self.config.max_payload_size_bytes)
+        self.network_estimator = NetworkEstimator(alpha=self.config.ewma_alpha)
 
         # Initialize scheduler based on mode
         self.scheduler: Scheduler = self._init_scheduler(self.config.scheduler_mode)
+        if isinstance(self.scheduler, AdaptiveScheduler):
+            self.scheduler.estimator = self.network_estimator
 
         # In-memory tracking for active scheduling decisions and explainability audit
         self._decisions: List[SchedulerDecision] = []
@@ -83,6 +103,7 @@ class OrchestratorRuntime:
         self.is_running = False
         self._background_tasks: List[asyncio.Task] = []
         self._lock = asyncio.Lock()
+
 
     def _init_scheduler(self, mode: SchedulerMode) -> Scheduler:
         if mode == SchedulerMode.ROUND_ROBIN:
@@ -242,7 +263,7 @@ class OrchestratorRuntime:
             t.cancel()
         logger.info("TaskMesh Orchestrator stopped cleanly")
 
-    async def submit_task(self, create_req: TaskCreate) -> Task:
+    async def submit_task(self, create_req: TaskCreate, binary_data: Optional[bytes] = None) -> Task:
         """Submits a new task to the cluster."""
         # 1. Idempotency check
         if create_req.idempotency_key:
@@ -267,8 +288,21 @@ class OrchestratorRuntime:
             preferred_capabilities=create_req.preferred_capabilities,
             retry_policy=create_req.retry_policy,
             supports_checkpoint=create_req.supports_checkpoint,
+            offload_policy=create_req.offload_policy,
+            binary_meta=create_req.binary_meta,
             metadata=create_req.metadata,
         )
+
+        if binary_data:
+            meta = await self.payload_store.add_payload(
+                task_id=task.id,
+                data=binary_data,
+                workload_type=task.task_type,
+                model_identifier=task.payload.get("model", "yolov8n"),
+                mime_type=task.payload.get("mime_type", "image/jpeg"),
+                chunk_size_bytes=self.config.chunk_size_bytes,
+            )
+            task.binary_meta = meta
 
         if task.idempotency_key:
             await self.idempotency.set_if_absent(task.idempotency_key, task.id)
@@ -284,8 +318,9 @@ class OrchestratorRuntime:
             await self.queue.enqueue(task)
 
         await self.repo.save(task)
-        logger.info(f"Accepted task [{task.id}] type={task.task_type} priority={task.priority}")
+        logger.info(f"Accepted task [{task.id}] type={task.task_type} priority={task.priority} offload_policy={task.offload_policy.value}")
         return task
+
 
     async def cancel_task(self, task_id: str, reason: str = "Client requested cancellation") -> Task:
         task = await self.repo.get(task_id)
@@ -404,13 +439,18 @@ class OrchestratorRuntime:
                     self._running_attempts[task.id] = attempt_id
 
                 # Build TaskAssignment message
+                payload_dict = dict(task.payload)
+                if task.binary_meta:
+                    payload_dict["has_binary_payload"] = True
+                    payload_dict["binary_meta"] = task.binary_meta.model_dump(mode="json")
+
                 assignment = TaskAssignmentPayload(
                     task_id=task.id,
                     attempt_id=attempt_id,
                     lease_id=task.active_lease.lease_id if task.active_lease else "lease",
                     lease_expires_at=task.active_lease.expires_at if task.active_lease else utc_now(),
                     task_type=task.task_type,
-                    payload=task.payload,
+                    payload=payload_dict,
                     priority=task.priority,
                     timeout_seconds=task.timeout_seconds,
                     checkpoint_state=cp_state,
@@ -422,6 +462,26 @@ class OrchestratorRuntime:
                 )
                 self.security.sign(msg)
                 await _send_websocket_text(ws, json.dumps(msg.model_dump(mode="json")))
+
+                # Transmit binary payload chunks over WebSocket binary frames if present
+                if task.binary_meta:
+                    raw_bytes = await self.payload_store.get_payload(task.id)
+                    if raw_bytes is not None:
+                        start_upload = time.perf_counter()
+                        chunks = split_into_chunks(raw_bytes, chunk_size=self.config.chunk_size_bytes)
+                        for chunk_idx, chunk in enumerate(chunks):
+                            frame = create_binary_chunk_frame(task.id, chunk_idx, len(chunks), chunk)
+                            await _send_websocket_bytes(ws, frame)
+                        upload_duration = time.perf_counter() - start_upload
+                        is_loc = getattr(decision, "offload_decision", "remote") == "local"
+                        self.network_estimator.update_transfer(
+                            selected_node_id,
+                            len(raw_bytes),
+                            upload_duration,
+                            direction="upload",
+                            is_local=is_loc,
+                        )
+
                 logger.info(f"Dispatched task [{task.id}] attempt [{attempt_id}] to node [{selected_node_id}] via {decision.policy_used.value}")
 
             except asyncio.CancelledError:
@@ -446,8 +506,22 @@ class OrchestratorRuntime:
             return
         node_id = msg.node_id or ""
 
-        if msg.message_type == MessageType.HEARTBEAT:
+        if msg.message_type == MessageType.PING:
+            pong = ProtocolMessage(
+                message_type=MessageType.PONG,
+                node_id=node_id,
+                payload={"orig_timestamp": msg.timestamp.isoformat()},
+            )
+            self.security.sign(pong)
+            await _send_websocket_text(ws, json.dumps(pong.model_dump(mode="json")))
+
+        elif msg.message_type == MessageType.HEARTBEAT:
             await self.registry.update_heartbeat(node_id)
+            # Estimate RTT from heartbeat timestamp
+            now = utc_now()
+            rtt_ms = (now - msg.timestamp).total_seconds() * 1000.0
+            if 0.0 < rtt_ms < 5000.0:
+                self.network_estimator.update_rtt(node_id, rtt_ms)
 
         elif msg.message_type == MessageType.TELEMETRY:
             telem_raw = msg.payload.get("telemetry")
@@ -455,6 +529,15 @@ class OrchestratorRuntime:
                 from taskmesh.core.models import NodeTelemetry
                 telem = NodeTelemetry.model_validate(telem_raw)
                 await self.registry.update_telemetry(node_id, telem)
+                if telem.rtt_ms_ewma > 0:
+                    self.network_estimator.update_rtt(node_id, telem.rtt_ms_ewma)
+                if telem.upload_mbps_ewma > 0:
+                    m = self.network_estimator.get_or_create_metrics(node_id)
+                    m.upload_mbps_ewma = telem.upload_mbps_ewma
+                if telem.download_mbps_ewma > 0:
+                    m = self.network_estimator.get_or_create_metrics(node_id)
+                    m.download_mbps_ewma = telem.download_mbps_ewma
+
 
         elif msg.message_type == MessageType.TASK_ACCEPTED:
             logger.debug(f"Node [{node_id}] accepted task [{msg.payload.get('task_id')}]")

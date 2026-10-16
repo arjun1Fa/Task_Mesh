@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskMesh Orchestrator Dashboard</title>
+  <meta name="description"
+    content="Modern, real-time distributed cluster orchestrator and task scheduling dashboard for TaskMesh.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-title">
+        <h1>TaskMesh Orchestrator</h1>
+        <p>Heterogeneous Distributed Task Engine</p>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" data-tab="overview">📊 Cluster Overview</button>
+      <button class="nav-tab-btn" data-tab="submit">➕ Submit Task</button>
+      <button class="nav-tab-btn" data-tab="scheduler">🧠 Adaptive Scheduler</button>
+      <a href="/docs" target="_blank" class="nav-tab-btn" style="text-decoration: none;">📖 API Docs ↗</a>
+    </nav>
+
+    <!-- Health Status Pill -->
+    <div class="header-actions">
+      <div id="cluster-status-pill" class="cluster-pill">
+        <span class="pulse-dot"></span> Cluster: ONLINE
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-content">
+
+    <!-- KPI Metric Cards -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Online Nodes</div>
+        <div class="stat-value" id="stat-online-nodes">0 / 0</div>
+        <div class="stat-sub">Active WebSocket workers</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Running Tasks</div>
+        <div class="stat-value" id="stat-running-tasks" style="color: var(--accent-cyan);">0</div>
+        <div class="stat-sub">Under active execution</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pending Queue</div>
+        <div class="stat-value" id="stat-pending-tasks" style="color: var(--accent-amber);">0</div>
+        <div class="stat-sub">Waiting for scheduling</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Completed</div>
+        <div class="stat-value" id="stat-total-tasks">0</div>
+        <div class="stat-sub">Lifetime cluster throughput</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Dead Letter Queue</div>
+        <div class="stat-value" id="stat-dlq-tasks" style="color: var(--accent-rose);">0</div>
+        <div class="stat-sub">Exhausted retry tasks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Scheduler Engine</div>
+        <div class="stat-value" id="stat-scheduler-mode" style="font-size: 1.15rem; color: var(--accent-indigo);">
+          ADAPTIVE</div>
+        <div class="stat-sub">EWMA + DRR + Q-Learning</div>
+      </div>
+    </section>
+
+    <!-- TAB 1: OVERVIEW -->
+    <section id="tab-overview" class="tab-view">
+
+      <!-- Nodes Section -->
+      <div class="panel-card" style="margin-bottom: 2rem;">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🖥️ Compute Nodes</span>
+            <span class="badge-counter" id="nodes-count">0 Nodes</span>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="fetchNodes()">↻ Refresh Nodes</button>
+        </div>
+        <div id="nodes-container" class="nodes-grid">
+          <!-- Dynamically populated by app.js -->
+        </div>
+      </div>
+
+      <!-- Tasks Section -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>📋 Cluster Tasks</span>
+            <span class="badge-counter" id="tasks-count">0 Tasks</span>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="fetchTasks()">↻ Refresh Tasks</button>
+        </div>
+        <div class="table-container">
+          <table class="task-table">
+            <thead>
+              <tr>
+                <th>Task ID</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Worker Node</th>
+                <th>Priority</th>
+                <th>Result / Error</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tasks-table-body">
+              <!-- Dynamically populated by app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 2: SUBMIT TASK -->
+    <section id="tab-submit" class="tab-view" style="display: none;">
+      <div class="grid-2col">
+
+        <!-- Standard Task Form -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title">⚡ Submit Standard Task</div>
+          </div>
+          <form id="task-form">
+            <div class="form-group">
+              <label class="form-label" for="task-type">Task Type</label>
+              <input type="text" id="task-type" class="form-control" value="log" required
+                placeholder="e.g. log, cpu_test, fibonacci">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="task-priority">Priority (Higher = Sooner)</label>
+                <input type="number" id="task-priority" class="form-control" value="5" min="0" max="100">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="task-policy">Offload Policy</label>
+                <select id="task-policy" class="form-select">
+                  <option value="wireless_allowed">Wireless Allowed</option>
+                  <option value="local_only">Local Only</option>
+                  <option value="remote_allowed">Remote Allowed</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                <input type="checkbox" id="task-gpu"> Requires Dedicated GPU Acceleration
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="task-payload">JSON Payload Data</label>
+              <textarea id="task-payload" class="form-control"
+                placeholder='{"message": "Hello from TaskMesh Web UI!"}'>{"message": "Hello TaskMesh"}</textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">🚀 Dispatch Task to Cluster</button>
+          </form>
+        </div>
+
+        <!-- AI Image Inference Task Form -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title">📷 Wireless AI Image Inference</div>
+          </div>
+          <form id="image-task-form">
+            <div class="form-group">
+              <label class="form-label" for="inference-file">Select Image File</label>
+              <input type="file" id="inference-file" class="form-control" accept="image/jpeg,image/png" required>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="inference-model">Vision Model</label>
+                <select id="inference-model" class="form-select">
+                  <option value="yolov8n">YOLOv8 Nano (Fast)</option>
+                  <option value="yolov8s">YOLOv8 Small</option>
+                  <option value="resnet50">ResNet-50 Classifier</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inference-priority">Priority</label>
+                <input type="number" id="inference-priority" class="form-control" value="8" min="0" max="100">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="inference-policy">Offload Policy</label>
+                <select id="inference-policy" class="form-select">
+                  <option value="wireless_allowed">Wireless Allowed</option>
+                  <option value="local_only">Local Only</option>
+                </select>
+              </div>
+              <div class="form-group" style="display: flex; align-items: center; padding-top: 1.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                  <input type="checkbox" id="inference-gpu" checked> Prefer GPU Worker
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.25rem;">Upload & Infer on
+              Best Node</button>
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 3: SCHEDULER -->
+    <section id="tab-scheduler" class="tab-view" style="display: none;">
+      <div class="grid-2col">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title">Weights & Q-Learning Status</div>
+            <button class="btn btn-outline btn-sm" onclick="fetchSchedulerDetails()">↻ Refresh</button>
+          </div>
+          <pre id="scheduler-json"
+            style="background: rgba(0,0,0,0.35); padding: 1rem; border-radius: 8px; font-size: 0.8rem; overflow-x: auto; color: var(--accent-cyan); max-height: 400px; font-family: 'Fira Code', monospace;">Loading scheduler internals...</pre>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title">Recent Scheduling Decisions</div>
+          </div>
+          <div class="table-container">
+            <table class="task-table">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Assigned Node</th>
+                  <th>Decision Policy</th>
+                  <th>Score</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody id="scheduler-decisions-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification Stack -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+
+</html>

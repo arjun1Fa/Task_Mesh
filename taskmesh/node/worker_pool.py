@@ -42,6 +42,7 @@ class WorkerPool:
         node_id: str,
         progress_callback: Optional[Callable[[float, str], Any]] = None,
         checkpoint_callback: Optional[Callable[[CheckpointData], Any]] = None,
+        binary_payload: Optional[bytes] = None,
     ) -> TaskResult:
         """Executes assigned task under semaphore with timeout and cancellation support."""
         task_id = assignment.task_id
@@ -63,7 +64,7 @@ class WorkerPool:
 
         async def _run() -> Any:
             async with self._semaphore:
-                # Provide checkpoint and progress callback to handler if expected
+                # Provide checkpoint, progress callback, and binary_payload if expected
                 sig = inspect.signature(handler)
                 kwargs = {}
                 if "checkpoint_state" in sig.parameters:
@@ -72,6 +73,8 @@ class WorkerPool:
                     kwargs["progress_callback"] = progress_callback
                 if "checkpoint_callback" in sig.parameters:
                     kwargs["checkpoint_callback"] = checkpoint_callback
+                if "binary_payload" in sig.parameters:
+                    kwargs["binary_payload"] = binary_payload
 
                 if inspect.iscoroutinefunction(handler):
                     return await handler(assignment.payload, **kwargs)
@@ -91,15 +94,27 @@ class WorkerPool:
         try:
             output = await async_task
             elapsed = time.perf_counter() - start_time
+            out_dict = output if isinstance(output, dict) else {"result": output}
+            telemetry_metrics = {
+                "inference_time_ms": out_dict.get("inference_time_ms", round(elapsed * 1000.0, 2)),
+                "execution_time_seconds": round(elapsed, 4),
+                "node_id": node_id,
+                "attempt_id": attempt_id,
+            }
+            if binary_payload:
+                telemetry_metrics["payload_size_bytes"] = len(binary_payload)
+
             return TaskResult(
                 task_id=task_id,
                 attempt_id=attempt_id,
                 node_id=node_id,
                 status=TaskStatus.COMPLETED,
-                output=output if isinstance(output, dict) else {"result": output},
+                output=out_dict,
+                metrics=telemetry_metrics,
                 execution_time_seconds=round(elapsed, 4),
                 completed_at=utc_now(),
             )
+
         except asyncio.TimeoutError:
             elapsed = time.perf_counter() - start_time
             return TaskResult(

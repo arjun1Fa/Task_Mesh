@@ -18,4 +18,15 @@ class SchedulerDecision(BaseModel):
     rl_state: Optional[Tuple[int, int, int]] = None
     rl_action: Optional[int] = None
     fallback_reason: Optional[str] = None
+
+    # Wireless & Offload explainability
+    local_estimate_ms: Optional[float] = None
+    remote_estimate_ms: Optional[float] = None
+    upload_ms: Optional[float] = None
+    remote_inference_ms: Optional[float] = None
+    download_ms: Optional[float] = None
+    offload_decision: Optional[str] = None  # "local" or "remote"
+    offload_reason: Optional[str] = None
+
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+

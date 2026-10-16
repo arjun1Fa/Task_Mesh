@@ -16,9 +16,25 @@ logging.basicConfig(
 )
 
 
+import sys
+
+
 def main() -> None:
+    # Support unified CLI routing: `taskmesh server ...` and `taskmesh node ...`
+    if len(sys.argv) > 1 and sys.argv[1] in ("server", "orchestrator"):
+        sys.argv.pop(1)
+    elif len(sys.argv) > 1 and sys.argv[1] in ("node", "agent"):
+        sys.argv.pop(1)
+        from taskmesh.node.main import main as node_main
+        return node_main()
+    elif len(sys.argv) > 1 and sys.argv[1] == "cluster":
+        sys.argv.pop(1)
+        from taskmesh.cluster.dev_cluster import main as cluster_main
+        return cluster_main()
+
     parser = argparse.ArgumentParser(description="TaskMesh Distributed Orchestrator")
     parser.add_argument("--host", type=str, default=None, help="Host to bind (default: 0.0.0.0)")
+
     parser.add_argument("--port", type=int, default=None, help="Port to listen (default: 8000)")
     parser.add_argument("--mode", type=str, default=None, choices=["adaptive", "round_robin", "least_loaded", "highest_bid"], help="Scheduler policy mode")
     parser.add_argument("--token", type=str, default=None, help="Cluster join token")
