@@ -1,0 +1,18 @@
+{
+  "timestamp_utc": "2026-10-16T18:42:51.229874+00:00",
+  "git_revision": "ea2750ce4c9e33cf03fe74f64f8485050cf64469",
+  "git_branch": "feature/wireless-inference",
+  "git_working_tree_clean": false,
+  "os": "Windows-11-10.0.26200-SP0",
+  "os_release": "11",
+  "architecture": "AMD64",
+  "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+  "physical_cores": 12,
+  "logical_cores": 16,
+  "ram_total_gb": 15.63,
+  "ram_available_gb": 2.23,
+  "python_version": "3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]",
+  "python_executable": "C:\\Users\\ASUS\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+  "cuda_available": false,
+  "cuda_device": null
+}
