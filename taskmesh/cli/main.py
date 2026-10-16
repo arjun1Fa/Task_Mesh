@@ -22,9 +22,13 @@ def handle_task_cmd(args: argparse.Namespace, base_url: str) -> None:
             if args.payload:
                 try:
                     payload = json.loads(args.payload)
-                except Exception as e:
-                    print(f"Error parsing JSON payload: {e}", file=sys.stderr)
-                    sys.exit(1)
+                except Exception:
+                    try:
+                        import ast
+                        payload = ast.literal_eval(args.payload)
+                    except Exception as e:
+                        print(f"Error parsing JSON payload: {e}", file=sys.stderr)
+                        sys.exit(1)
 
             req = {
                 "task_type": args.type,

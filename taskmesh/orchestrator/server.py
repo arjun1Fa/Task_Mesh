@@ -4,8 +4,11 @@ from contextlib import asynccontextmanager
 import json
 import logging
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from taskmesh.core.config import OrchestratorConfig
@@ -340,5 +343,19 @@ def create_app(
             if node_id:
                 await rt.registry.mark_offline(node_id)
                 await rt._recover_tasks_for_failed_node(node_id)
+
+    # ---------------------------------------------------------
+    # Frontend Dashboard UI
+    # ---------------------------------------------------------
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+        @app.get("/", include_in_schema=False)
+        async def serve_dashboard() -> FileResponse:
+            index_file = static_dir / "index.html"
+            if index_file.exists():
+                return FileResponse(index_file)
+            raise HTTPException(status_code=404, detail="Dashboard UI not found")
 
     return app
