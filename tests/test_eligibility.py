@@ -74,3 +74,25 @@ async def test_checkpoint_manager():
     await mgr.attach_checkpoint(task)
     assert task.latest_checkpoint is not None
     assert task.latest_checkpoint.step == 50
+
+
+@pytest.mark.asyncio
+async def test_baseline_tie_breaking():
+    from taskmesh.scheduler.baseline import LeastLoadedScheduler, HighestBidScheduler
+    
+    n1 = NodeProfile(id="n1", status=NodeStatus.ONLINE, base_score=1.0)
+    n2 = NodeProfile(id="n2", status=NodeStatus.ONLINE, base_score=1.0)
+    candidates = [n1, n2]
+    task = Task(id="t1", task_type="cpu_test")
+    
+    ll = LeastLoadedScheduler()
+    dec1 = await ll.select_node(task, candidates)
+    dec2 = await ll.select_node(task, candidates)
+    # With tie-breaking, consecutive selections rotate among tied candidates
+    assert {dec1.selected_node_id, dec2.selected_node_id} == {"n1", "n2"}
+
+    hb = HighestBidScheduler()
+    dec_hb1 = await hb.select_node(task, candidates)
+    dec_hb2 = await hb.select_node(task, candidates)
+    assert {dec_hb1.selected_node_id, dec_hb2.selected_node_id} == {"n1", "n2"}
+
