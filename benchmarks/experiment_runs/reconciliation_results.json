@@ -1,0 +1,192 @@
+{
+  "Adaptive (Epsilon Decay)": {
+    "decisions_per_sec": {
+      "mean": 21310.0031,
+      "median": 21685.1533,
+      "p95": 22507.71,
+      "max": 22544.6101
+    },
+    "p50_decision_latency_ms": {
+      "mean": 0.0324,
+      "median": 0.0321,
+      "p95": 0.0336,
+      "max": 0.0338
+    },
+    "p95_decision_latency_ms": {
+      "mean": 0.0488,
+      "median": 0.0471,
+      "p95": 0.0542,
+      "max": 0.0553
+    },
+    "fairness_cv": {
+      "mean": 0.8665,
+      "median": 0.8751,
+      "p95": 0.8751,
+      "max": 0.8751
+    },
+    "final_epsilon": {
+      "mean": 0.055,
+      "median": 0.055,
+      "p95": 0.055,
+      "max": 0.055
+    },
+    "mean_allocations": {
+      "node-gpu-rig": 121.2,
+      "node-cpu-server": 47.4,
+      "node-laptop": 22.0,
+      "node-edge-mini": 9.4
+    }
+  },
+  "Adaptive (Fixed Epsilon 0.15)": {
+    "decisions_per_sec": {
+      "mean": 21602.9761,
+      "median": 22010.6752,
+      "p95": 22637.0922,
+      "max": 22667.256
+    },
+    "p50_decision_latency_ms": {
+      "mean": 0.0318,
+      "median": 0.0318,
+      "p95": 0.0331,
+      "max": 0.0334
+    },
+    "p95_decision_latency_ms": {
+      "mean": 0.0507,
+      "median": 0.0483,
+      "p95": 0.0602,
+      "max": 0.0628
+    },
+    "fairness_cv": {
+      "mean": 0.8486,
+      "median": 0.8508,
+      "p95": 0.8537,
+      "max": 0.8537
+    },
+    "final_epsilon": {
+      "mean": 0.15,
+      "median": 0.15,
+      "p95": 0.15,
+      "max": 0.15
+    },
+    "mean_allocations": {
+      "node-gpu-rig": 119.6,
+      "node-cpu-server": 47.8,
+      "node-laptop": 22.6,
+      "node-edge-mini": 10.0
+    }
+  },
+  "Ablation (No Q-Learning)": {
+    "decisions_per_sec": {
+      "mean": 24893.0829,
+      "median": 24996.2506,
+      "p95": 25961.0248,
+      "max": 26016.937
+    },
+    "p50_decision_latency_ms": {
+      "mean": 0.0275,
+      "median": 0.0272,
+      "p95": 0.0291,
+      "max": 0.0295
+    },
+    "p95_decision_latency_ms": {
+      "mean": 0.0421,
+      "median": 0.0417,
+      "p95": 0.0449,
+      "max": 0.0457
+    },
+    "fairness_cv": {
+      "mean": 0.8751,
+      "median": 0.8751,
+      "p95": 0.8751,
+      "max": 0.8751
+    },
+    "final_epsilon": {
+      "mean": 0.0,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0.0
+    },
+    "mean_allocations": {
+      "node-gpu-rig": 122.0,
+      "node-cpu-server": 47.0,
+      "node-laptop": 22.0,
+      "node-edge-mini": 9.0
+    }
+  },
+  "Ablation (No MWU / Uniform)": {
+    "decisions_per_sec": {
+      "mean": 25412.8747,
+      "median": 25505.9748,
+      "p95": 27267.4482,
+      "max": 27280.6635
+    },
+    "p50_decision_latency_ms": {
+      "mean": 0.0312,
+      "median": 0.0311,
+      "p95": 0.0326,
+      "max": 0.0329
+    },
+    "p95_decision_latency_ms": {
+      "mean": 0.0517,
+      "median": 0.0507,
+      "p95": 0.0601,
+      "max": 0.0606
+    },
+    "fairness_cv": {
+      "mean": 0.86,
+      "median": 0.8537,
+      "p95": 0.8751,
+      "max": 0.8751
+    },
+    "final_epsilon": {
+      "mean": 0.055,
+      "median": 0.055,
+      "p95": 0.055,
+      "max": 0.055
+    },
+    "mean_allocations": {
+      "node-gpu-rig": 120.6,
+      "node-cpu-server": 47.6,
+      "node-laptop": 22.2,
+      "node-edge-mini": 9.6
+    }
+  },
+  "Ablation (No RL & No MWU)": {
+    "decisions_per_sec": {
+      "mean": 30759.2577,
+      "median": 31619.0536,
+      "p95": 32209.5262,
+      "max": 32248.702
+    },
+    "p50_decision_latency_ms": {
+      "mean": 0.0268,
+      "median": 0.0261,
+      "p95": 0.0289,
+      "max": 0.0295
+    },
+    "p95_decision_latency_ms": {
+      "mean": 0.0408,
+      "median": 0.0397,
+      "p95": 0.0452,
+      "max": 0.0464
+    },
+    "fairness_cv": {
+      "mean": 0.8751,
+      "median": 0.8751,
+      "p95": 0.8751,
+      "max": 0.8751
+    },
+    "final_epsilon": {
+      "mean": 0.0,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0.0
+    },
+    "mean_allocations": {
+      "node-gpu-rig": 122.0,
+      "node-cpu-server": 47.0,
+      "node-laptop": 22.0,
+      "node-edge-mini": 9.0
+    }
+  }
+}
