@@ -73,3 +73,63 @@ def test_qlearning_state_and_update():
     # Bellman update
     rl.update(state, action=0, reward=2.0)
     assert rl.q_table[state][0] > 0.0
+
+
+@pytest.mark.asyncio
+async def test_adaptive_scheduler_ablations():
+    from taskmesh.scheduler.adaptive import AdaptiveScheduler
+
+    nodes = [
+        NodeProfile(id="n1", base_score=2.0, capabilities=NodeCapabilities(cpu_cores=8, ram_total_mb=16384)),
+        NodeProfile(id="n2", base_score=1.0, capabilities=NodeCapabilities(cpu_cores=4, ram_total_mb=8192)),
+    ]
+    task = Task(id="t1", task_type="cpu_test", priority=10)
+
+    # 1. Full Adaptive
+    sched_full = AdaptiveScheduler()
+    dec_full = await sched_full.select_node(task, nodes)
+    assert dec_full.selected_node_id in ("n1", "n2")
+
+    # 2. Without DRR
+    sched_no_drr = AdaptiveScheduler(enable_drr=False)
+    dec_no_drr = await sched_no_drr.select_node(task, nodes)
+    assert dec_no_drr.selected_node_id in ("n1", "n2")
+
+    # 3. Without Bidding
+    sched_no_bid = AdaptiveScheduler(enable_bidding=False)
+    dec_no_bid = await sched_no_bid.select_node(task, nodes)
+    assert dec_no_bid.selected_node_id in ("n1", "n2")
+
+    # 4. Without MWU
+    sched_no_mwu = AdaptiveScheduler(enable_mwu=False)
+    dec_no_mwu = await sched_no_mwu.select_node(task, nodes)
+    assert dec_no_mwu.selected_node_id in ("n1", "n2")
+
+    # 5. Without RL
+    sched_no_rl = AdaptiveScheduler(enable_rl=False)
+    dec_no_rl = await sched_no_rl.select_node(task, nodes)
+    assert dec_no_rl.selected_node_id in ("n1", "n2")
+    assert dec_no_rl.rl_state is None
+    assert dec_no_rl.rl_action == 0
+
+    # 6. Without Wireless Cost
+    sched_no_wc = AdaptiveScheduler(enable_wireless_cost=False)
+    dec_no_wc = await sched_no_wc.select_node(task, nodes)
+    assert dec_no_wc.selected_node_id in ("n1", "n2")
+    assert "direct selection without wireless cost" in dec_no_wc.offload_reason
+
+    # 7. EWMA update (faster than expected yields > 1.0; slower yields < 1.0)
+    node_copy = nodes[0].model_copy()
+    await sched_full.record_task_outcome(node_copy, task, dec_full, actual_duration_seconds=0.0001, success=True)
+    assert node_copy.performance_multiplier > 1.0
+
+    node_slow = nodes[0].model_copy()
+    await sched_full.record_task_outcome(node_slow, task, dec_full, actual_duration_seconds=20.0, success=True)
+    assert node_slow.performance_multiplier < 1.0
+
+    # Without EWMA update
+    node_no_ewma = nodes[0].model_copy()
+    sched_no_ewma = AdaptiveScheduler(enable_ewma=False)
+    await sched_no_ewma.record_task_outcome(node_no_ewma, task, dec_full, actual_duration_seconds=0.0001, success=True)
+    assert node_no_ewma.performance_multiplier == 1.0
+

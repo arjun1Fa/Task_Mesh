@@ -612,6 +612,7 @@ class OrchestratorRuntime:
         task.result = res
         task.progress = 1.0
         task.active_lease = None
+        task.assigned_node_id = node_id
         await self.repo.save(task)
 
         # Update node statistics

@@ -41,6 +41,10 @@ class RoundRobinScheduler:
 class LeastLoadedScheduler:
     """Selects the eligible node with the lowest CPU/RAM load and active task count."""
 
+    def __init__(self) -> None:
+        self._tie_index: int = 0
+        self._lock = asyncio.Lock()
+
     async def select_node(self, task: Task, candidates: List[NodeProfile]) -> SchedulerDecision:
         eligible = filter_eligible_nodes(task, candidates)
         if not eligible:
@@ -55,7 +59,15 @@ class LeastLoadedScheduler:
                 + node.telemetry.ram_percent
             )
 
-        selected = min(eligible, key=load_key)
+        async with self._lock:
+            loads = [(n, load_key(n)) for n in eligible]
+            min_load = min(load for _, load in loads)
+            tied_candidates = [n for n, l in loads if abs(l - min_load) < 0.1]
+            if len(tied_candidates) > 1:
+                selected = tied_candidates[self._tie_index % len(tied_candidates)]
+                self._tie_index = (self._tie_index + 1) % len(tied_candidates)
+            else:
+                selected = tied_candidates[0]
 
         return SchedulerDecision(
             task_id=task.id,
@@ -75,14 +87,23 @@ class HighestBidScheduler:
         self.weights = default_weights or {
             "cpu": 0.2, "gpu": 0.2, "load": 0.2, "latency": 0.2, "reliability": 0.2
         }
+        self._tie_index: int = 0
+        self._lock = asyncio.Lock()
 
     async def select_node(self, task: Task, candidates: List[NodeProfile]) -> SchedulerDecision:
         eligible = filter_eligible_nodes(task, candidates)
         if not eligible:
             raise IneligibleNodeError(f"No eligible nodes available for task {task.id}")
 
-        bids = {n.id: calculate_node_bid(n, task, self.weights) for n in eligible}
-        selected = max(eligible, key=lambda n: bids[n.id])
+        async with self._lock:
+            bids = {n.id: calculate_node_bid(n, task, self.weights) for n in eligible}
+            max_bid = max(bids.values())
+            tied_candidates = [n for n in eligible if abs(bids[n.id] - max_bid) < 1e-4]
+            if len(tied_candidates) > 1:
+                selected = tied_candidates[self._tie_index % len(tied_candidates)]
+                self._tie_index = (self._tie_index + 1) % len(tied_candidates)
+            else:
+                selected = tied_candidates[0]
 
         return SchedulerDecision(
             task_id=task.id,

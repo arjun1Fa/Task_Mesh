@@ -1,0 +1,638 @@
+{
+  "experiment_1_model_decisions": {
+    "fast_network": {
+      "profile_config": {
+        "rtt_ms": 2.0,
+        "upload_mbps": 300.0,
+        "download_mbps": 300.0,
+        "description": "Low latency, high bandwidth (Wi-Fi 6 near router)"
+      },
+      "decisions": [
+        {
+          "payload_size_kb": 50,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 31.4,
+          "upload_ms": 1.37,
+          "download_ms": 0.03,
+          "remote_infer_ms": 28.0,
+          "decision": "remote",
+          "reason": "remote execution predicted faster (31.4ms < 135.0ms)"
+        },
+        {
+          "payload_size_kb": 200,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 35.49,
+          "upload_ms": 5.46,
+          "download_ms": 0.03,
+          "remote_infer_ms": 28.0,
+          "decision": "remote",
+          "reason": "remote execution predicted faster (35.49ms < 135.0ms)"
+        },
+        {
+          "payload_size_kb": 500,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 43.68,
+          "upload_ms": 13.65,
+          "download_ms": 0.03,
+          "remote_infer_ms": 28.0,
+          "decision": "remote",
+          "reason": "remote execution predicted faster (43.68ms < 135.0ms)"
+        },
+        {
+          "payload_size_kb": 1000,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 57.34,
+          "upload_ms": 27.31,
+          "download_ms": 0.03,
+          "remote_infer_ms": 28.0,
+          "decision": "remote",
+          "reason": "remote execution predicted faster (57.34ms < 135.0ms)"
+        },
+        {
+          "payload_size_kb": 2048,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 85.95,
+          "upload_ms": 55.92,
+          "download_ms": 0.03,
+          "remote_infer_ms": 28.0,
+          "decision": "remote",
+          "reason": "remote execution predicted faster (85.95ms < 135.0ms)"
+        },
+        {
+          "payload_size_kb": 5120,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 169.84,
+          "upload_ms": 139.81,
+          "download_ms": 0.03,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 169.84ms)"
+        }
+      ]
+    },
+    "typical_network": {
+      "profile_config": {
+        "rtt_ms": 25.0,
+        "upload_mbps": 40.0,
+        "download_mbps": 60.0,
+        "description": "Moderate latency and bandwidth (typical 2.4/5GHz Wi-Fi)"
+      },
+      "decisions": [
+        {
+          "payload_size_kb": 50,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 63.38,
+          "upload_ms": 10.24,
+          "download_ms": 0.14,
+          "remote_infer_ms": 28.0,
+          "decision": "remote",
+          "reason": "remote execution predicted faster (63.38ms < 135.0ms)"
+        },
+        {
+          "payload_size_kb": 200,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 94.1,
+          "upload_ms": 40.96,
+          "download_ms": 0.14,
+          "remote_infer_ms": 28.0,
+          "decision": "remote",
+          "reason": "remote execution predicted faster (94.1ms < 135.0ms)"
+        },
+        {
+          "payload_size_kb": 500,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 155.54,
+          "upload_ms": 102.4,
+          "download_ms": 0.14,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 155.54ms)"
+        },
+        {
+          "payload_size_kb": 1000,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 257.94,
+          "upload_ms": 204.8,
+          "download_ms": 0.14,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 257.94ms)"
+        },
+        {
+          "payload_size_kb": 2048,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 472.57,
+          "upload_ms": 419.43,
+          "download_ms": 0.14,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 472.57ms)"
+        },
+        {
+          "payload_size_kb": 5120,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 1101.72,
+          "upload_ms": 1048.58,
+          "download_ms": 0.14,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 1101.72ms)"
+        }
+      ]
+    },
+    "constrained_network": {
+      "profile_config": {
+        "rtt_ms": 120.0,
+        "upload_mbps": 5.0,
+        "download_mbps": 10.0,
+        "description": "High latency, constrained bandwidth (weak signal / edge)"
+      },
+      "decisions": [
+        {
+          "payload_size_kb": 50,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 230.74,
+          "upload_ms": 81.92,
+          "download_ms": 0.82,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 230.74ms)"
+        },
+        {
+          "payload_size_kb": 200,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 476.5,
+          "upload_ms": 327.68,
+          "download_ms": 0.82,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 476.5ms)"
+        },
+        {
+          "payload_size_kb": 500,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 968.02,
+          "upload_ms": 819.2,
+          "download_ms": 0.82,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 968.02ms)"
+        },
+        {
+          "payload_size_kb": 1000,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 1787.22,
+          "upload_ms": 1638.4,
+          "download_ms": 0.82,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 1787.22ms)"
+        },
+        {
+          "payload_size_kb": 2048,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 3504.26,
+          "upload_ms": 3355.44,
+          "download_ms": 0.82,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 3504.26ms)"
+        },
+        {
+          "payload_size_kb": 5120,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 8537.43,
+          "upload_ms": 8388.61,
+          "download_ms": 0.82,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 8537.43ms)"
+        }
+      ]
+    },
+    "congested_network": {
+      "profile_config": {
+        "rtt_ms": 85.0,
+        "upload_mbps": 12.0,
+        "download_mbps": 18.0,
+        "description": "Variable network condition with queue congestion"
+      },
+      "decisions": [
+        {
+          "payload_size_kb": 50,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 147.59,
+          "upload_ms": 34.13,
+          "download_ms": 0.46,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 147.59ms)"
+        },
+        {
+          "payload_size_kb": 200,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 249.99,
+          "upload_ms": 136.53,
+          "download_ms": 0.46,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 249.99ms)"
+        },
+        {
+          "payload_size_kb": 500,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 454.79,
+          "upload_ms": 341.33,
+          "download_ms": 0.46,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 454.79ms)"
+        },
+        {
+          "payload_size_kb": 1000,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 796.13,
+          "upload_ms": 682.67,
+          "download_ms": 0.46,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 796.13ms)"
+        },
+        {
+          "payload_size_kb": 2048,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 1511.56,
+          "upload_ms": 1398.1,
+          "download_ms": 0.46,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 1511.56ms)"
+        },
+        {
+          "payload_size_kb": 5120,
+          "local_estimate_ms": 135.0,
+          "remote_estimate_ms": 3608.71,
+          "upload_ms": 3495.25,
+          "download_ms": 0.46,
+          "remote_infer_ms": 28.0,
+          "decision": "local",
+          "reason": "local execution predicted faster or equal (135.0ms <= 3608.71ms)"
+        }
+      ]
+    }
+  },
+  "experiment_2_transport_delay": {
+    "fast_network": {
+      "profile_config": {
+        "rtt_ms": 2.0,
+        "upload_mbps": 300.0,
+        "download_mbps": 300.0,
+        "description": "Low latency, high bandwidth (Wi-Fi 6 near router)"
+      },
+      "metrics": [
+        {
+          "payload_size_kb": 50,
+          "simulated_transfer_delay_ms": {
+            "mean": 3.3519,
+            "median": 3.3163,
+            "p95": 3.4663,
+            "max": 3.4729
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 31.35,
+          "optimal_choice": "remote",
+          "advantage_ms": 103.65
+        },
+        {
+          "payload_size_kb": 200,
+          "simulated_transfer_delay_ms": {
+            "mean": 7.4299,
+            "median": 7.4302,
+            "p95": 7.7501,
+            "max": 7.7823
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 35.43,
+          "optimal_choice": "remote",
+          "advantage_ms": 99.57
+        },
+        {
+          "payload_size_kb": 500,
+          "simulated_transfer_delay_ms": {
+            "mean": 15.3982,
+            "median": 15.2394,
+            "p95": 15.8703,
+            "max": 15.9157
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 43.4,
+          "optimal_choice": "remote",
+          "advantage_ms": 91.6
+        },
+        {
+          "payload_size_kb": 1000,
+          "simulated_transfer_delay_ms": {
+            "mean": 29.1407,
+            "median": 29.4658,
+            "p95": 30.1125,
+            "max": 30.2417
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 57.14,
+          "optimal_choice": "remote",
+          "advantage_ms": 77.86
+        },
+        {
+          "payload_size_kb": 2048,
+          "simulated_transfer_delay_ms": {
+            "mean": 58.4809,
+            "median": 59.0996,
+            "p95": 60.4255,
+            "max": 60.601
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 86.48,
+          "optimal_choice": "remote",
+          "advantage_ms": 48.52
+        },
+        {
+          "payload_size_kb": 5120,
+          "simulated_transfer_delay_ms": {
+            "mean": 140.3546,
+            "median": 139.5197,
+            "p95": 146.0747,
+            "max": 146.7662
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 168.35,
+          "optimal_choice": "local",
+          "advantage_ms": 33.35
+        }
+      ]
+    },
+    "typical_network": {
+      "profile_config": {
+        "rtt_ms": 25.0,
+        "upload_mbps": 40.0,
+        "download_mbps": 60.0,
+        "description": "Moderate latency and bandwidth (typical 2.4/5GHz Wi-Fi)"
+      },
+      "metrics": [
+        {
+          "payload_size_kb": 50,
+          "simulated_transfer_delay_ms": {
+            "mean": 36.0308,
+            "median": 36.1892,
+            "p95": 36.9328,
+            "max": 37.0503
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 64.03,
+          "optimal_choice": "remote",
+          "advantage_ms": 70.97
+        },
+        {
+          "payload_size_kb": 200,
+          "simulated_transfer_delay_ms": {
+            "mean": 67.3379,
+            "median": 66.8799,
+            "p95": 68.4446,
+            "max": 68.4873
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 95.34,
+          "optimal_choice": "remote",
+          "advantage_ms": 39.66
+        },
+        {
+          "payload_size_kb": 500,
+          "simulated_transfer_delay_ms": {
+            "mean": 124.5968,
+            "median": 124.0662,
+            "p95": 129.0865,
+            "max": 130.1456
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 152.6,
+          "optimal_choice": "local",
+          "advantage_ms": 17.6
+        },
+        {
+          "payload_size_kb": 1000,
+          "simulated_transfer_delay_ms": {
+            "mean": 225.8542,
+            "median": 224.8313,
+            "p95": 231.8108,
+            "max": 233.0564
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 253.85,
+          "optimal_choice": "local",
+          "advantage_ms": 118.85
+        },
+        {
+          "payload_size_kb": 2048,
+          "simulated_transfer_delay_ms": {
+            "mean": 443.9566,
+            "median": 438.7956,
+            "p95": 461.4129,
+            "max": 463.9792
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 471.96,
+          "optimal_choice": "local",
+          "advantage_ms": 336.96
+        },
+        {
+          "payload_size_kb": 5120,
+          "simulated_transfer_delay_ms": {
+            "mean": 1064.0975,
+            "median": 1060.7695,
+            "p95": 1095.7373,
+            "max": 1098.3142
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 1092.1,
+          "optimal_choice": "local",
+          "advantage_ms": 957.1
+        }
+      ]
+    },
+    "constrained_network": {
+      "profile_config": {
+        "rtt_ms": 120.0,
+        "upload_mbps": 5.0,
+        "download_mbps": 10.0,
+        "description": "High latency, constrained bandwidth (weak signal / edge)"
+      },
+      "metrics": [
+        {
+          "payload_size_kb": 50,
+          "simulated_transfer_delay_ms": {
+            "mean": 207.6615,
+            "median": 206.4821,
+            "p95": 212.069,
+            "max": 212.6638
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 235.66,
+          "optimal_choice": "local",
+          "advantage_ms": 100.66
+        },
+        {
+          "payload_size_kb": 200,
+          "simulated_transfer_delay_ms": {
+            "mean": 440.6087,
+            "median": 438.0824,
+            "p95": 456.7467,
+            "max": 460.8778
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 468.61,
+          "optimal_choice": "local",
+          "advantage_ms": 333.61
+        },
+        {
+          "payload_size_kb": 500,
+          "simulated_transfer_delay_ms": {
+            "mean": 949.4265,
+            "median": 954.6307,
+            "p95": 980.4025,
+            "max": 981.6536
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 977.43,
+          "optimal_choice": "local",
+          "advantage_ms": 842.43
+        },
+        {
+          "payload_size_kb": 1000,
+          "simulated_transfer_delay_ms": {
+            "mean": 1751.4976,
+            "median": 1740.8586,
+            "p95": 1816.1138,
+            "max": 1832.1472
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 1779.5,
+          "optimal_choice": "local",
+          "advantage_ms": 1644.5
+        },
+        {
+          "payload_size_kb": 2048,
+          "simulated_transfer_delay_ms": {
+            "mean": 3490.579,
+            "median": 3497.5956,
+            "p95": 3592.7782,
+            "max": 3614.5561
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 3518.58,
+          "optimal_choice": "local",
+          "advantage_ms": 3383.58
+        },
+        {
+          "payload_size_kb": 5120,
+          "simulated_transfer_delay_ms": {
+            "mean": 8401.2571,
+            "median": 8270.5852,
+            "p95": 8849.7493,
+            "max": 8932.8032
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 8429.26,
+          "optimal_choice": "local",
+          "advantage_ms": 8294.26
+        }
+      ]
+    },
+    "congested_network": {
+      "profile_config": {
+        "rtt_ms": 85.0,
+        "upload_mbps": 12.0,
+        "download_mbps": 18.0,
+        "description": "Variable network condition with queue congestion"
+      },
+      "metrics": [
+        {
+          "payload_size_kb": 50,
+          "simulated_transfer_delay_ms": {
+            "mean": 118.4281,
+            "median": 118.6576,
+            "p95": 122.6876,
+            "max": 123.0814
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 146.43,
+          "optimal_choice": "local",
+          "advantage_ms": 11.43
+        },
+        {
+          "payload_size_kb": 200,
+          "simulated_transfer_delay_ms": {
+            "mean": 227.488,
+            "median": 229.9973,
+            "p95": 232.8906,
+            "max": 233.0018
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 255.49,
+          "optimal_choice": "local",
+          "advantage_ms": 120.49
+        },
+        {
+          "payload_size_kb": 500,
+          "simulated_transfer_delay_ms": {
+            "mean": 424.3789,
+            "median": 428.3663,
+            "p95": 435.8756,
+            "max": 436.2086
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 452.38,
+          "optimal_choice": "local",
+          "advantage_ms": 317.38
+        },
+        {
+          "payload_size_kb": 1000,
+          "simulated_transfer_delay_ms": {
+            "mean": 769.5784,
+            "median": 764.5672,
+            "p95": 798.1742,
+            "max": 802.9804
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 797.58,
+          "optimal_choice": "local",
+          "advantage_ms": 662.58
+        },
+        {
+          "payload_size_kb": 2048,
+          "simulated_transfer_delay_ms": {
+            "mean": 1490.4137,
+            "median": 1483.6434,
+            "p95": 1543.681,
+            "max": 1544.7721
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 1518.41,
+          "optimal_choice": "local",
+          "advantage_ms": 1383.41
+        },
+        {
+          "payload_size_kb": 5120,
+          "simulated_transfer_delay_ms": {
+            "mean": 3585.7016,
+            "median": 3619.7275,
+            "p95": 3696.7967,
+            "max": 3713.3803
+          },
+          "simulated_local_e2e_ms": 135.0,
+          "simulated_remote_e2e_ms": 3613.7,
+          "optimal_choice": "local",
+          "advantage_ms": 3478.7
+        }
+      ]
+    }
+  }
+}

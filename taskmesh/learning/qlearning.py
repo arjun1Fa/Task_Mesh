@@ -21,10 +21,14 @@ class QLearningScheduler:
         learning_rate: float = 0.1,
         discount_factor: float = 0.9,
         epsilon: float = 0.15,
+        epsilon_min: Optional[float] = None,
+        epsilon_decay: float = 0.995,
     ) -> None:
         self.lr = learning_rate
         self.gamma = discount_factor
         self.epsilon = epsilon
+        self.epsilon_min = 0.01 if epsilon_min is None and epsilon > 0.01 else (epsilon_min or 0.0)
+        self.epsilon_decay = epsilon_decay
         # Q-table: state_tuple -> list of Q-values [q_slot0, q_slot1, q_slot2]
         self.q_table: Dict[Tuple[int, int, int], List[float]] = {}
 
@@ -104,6 +108,10 @@ class QLearningScheduler:
 
         target = reward + (self.gamma * max_next_q)
         self.q_table[state][action] = current_q + self.lr * (target - current_q)
+
+        # Decay exploration epsilon towards epsilon_min
+        if self.epsilon > self.epsilon_min:
+            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
     @staticmethod
     def calculate_reward(success: bool, execution_time: float, timeout_seconds: float) -> float:

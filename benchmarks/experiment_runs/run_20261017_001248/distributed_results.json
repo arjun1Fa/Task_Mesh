@@ -1,0 +1,450 @@
+{
+  "round_robin": {
+    "policy": "round_robin",
+    "num_trials": 3,
+    "tasks_per_trial": 40,
+    "throughput_tasks_per_sec": {
+      "mean": 13.5667,
+      "median": 13.95,
+      "p95": 14.337,
+      "max": 14.38
+    },
+    "e2e_latency_mean_sec": {
+      "mean": 1.218,
+      "median": 1.1645,
+      "p95": 1.324,
+      "max": 1.3417
+    },
+    "e2e_latency_p50_sec": {
+      "mean": 1.1827,
+      "median": 1.1873,
+      "p95": 1.284,
+      "max": 1.2948
+    },
+    "e2e_latency_p95_sec": {
+      "mean": 1.8279,
+      "median": 1.7579,
+      "p95": 1.9604,
+      "max": 1.9829
+    },
+    "fairness_cv": {
+      "mean": 0.0,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0.0
+    },
+    "mean_task_distribution": {
+      "sim-gpu-rig": 10.0,
+      "sim-cpu-server": 10.0,
+      "sim-laptop": 10.0,
+      "sim-edge-mini": 10.0
+    },
+    "trial_details": [
+      {
+        "policy": "round_robin",
+        "trial": 1,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 3.234,
+        "throughput_tasks_per_sec": 12.37,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.3417,
+          "median": 1.2948,
+          "p95": 1.9829,
+          "max": 1.987
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "sim-gpu-rig": 10,
+          "sim-cpu-server": 10,
+          "sim-laptop": 10,
+          "sim-edge-mini": 10
+        },
+        "failures": 0
+      },
+      {
+        "policy": "round_robin",
+        "trial": 2,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.782,
+        "throughput_tasks_per_sec": 14.38,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.1477,
+          "median": 1.066,
+          "p95": 1.7429,
+          "max": 1.7512
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "sim-gpu-rig": 10,
+          "sim-cpu-server": 10,
+          "sim-laptop": 10,
+          "sim-edge-mini": 10
+        },
+        "failures": 0
+      },
+      {
+        "policy": "round_robin",
+        "trial": 3,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.868,
+        "throughput_tasks_per_sec": 13.95,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.1645,
+          "median": 1.1873,
+          "p95": 1.7579,
+          "max": 1.8004
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "sim-gpu-rig": 10,
+          "sim-cpu-server": 10,
+          "sim-laptop": 10,
+          "sim-edge-mini": 10
+        },
+        "failures": 0
+      }
+    ]
+  },
+  "least_loaded": {
+    "policy": "least_loaded",
+    "num_trials": 3,
+    "tasks_per_trial": 40,
+    "throughput_tasks_per_sec": {
+      "mean": 13.3933,
+      "median": 13.23,
+      "p95": 13.725,
+      "max": 13.78
+    },
+    "e2e_latency_mean_sec": {
+      "mean": 1.3178,
+      "median": 1.2331,
+      "p95": 1.5251,
+      "max": 1.5575
+    },
+    "e2e_latency_p50_sec": {
+      "mean": 1.3888,
+      "median": 1.1941,
+      "p95": 1.7581,
+      "max": 1.8208
+    },
+    "e2e_latency_p95_sec": {
+      "mean": 1.8731,
+      "median": 1.8585,
+      "p95": 1.9599,
+      "max": 1.9712
+    },
+    "fairness_cv": {
+      "mean": 1.7321,
+      "median": 1.7321,
+      "p95": 1.7321,
+      "max": 1.7321
+    },
+    "mean_task_distribution": {
+      "sim-gpu-rig": 13.3,
+      "sim-cpu-server": 13.3,
+      "sim-laptop": 13.3,
+      "sim-edge-mini": 0.0
+    },
+    "trial_details": [
+      {
+        "policy": "least_loaded",
+        "trial": 1,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 3.038,
+        "throughput_tasks_per_sec": 13.17,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.5575,
+          "median": 1.8208,
+          "p95": 1.9712,
+          "max": 1.9828
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "sim-gpu-rig": 0,
+          "sim-cpu-server": 0,
+          "sim-laptop": 40,
+          "sim-edge-mini": 0
+        },
+        "failures": 0
+      },
+      {
+        "policy": "least_loaded",
+        "trial": 2,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 3.022,
+        "throughput_tasks_per_sec": 13.23,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.2331,
+          "median": 1.1941,
+          "p95": 1.8585,
+          "max": 1.8642
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "sim-gpu-rig": 40,
+          "sim-cpu-server": 0,
+          "sim-laptop": 0,
+          "sim-edge-mini": 0
+        },
+        "failures": 0
+      },
+      {
+        "policy": "least_loaded",
+        "trial": 3,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.902,
+        "throughput_tasks_per_sec": 13.78,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.1628,
+          "median": 1.1514,
+          "p95": 1.7895,
+          "max": 1.834
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "sim-gpu-rig": 0,
+          "sim-cpu-server": 40,
+          "sim-laptop": 0,
+          "sim-edge-mini": 0
+        },
+        "failures": 0
+      }
+    ]
+  },
+  "highest_bid": {
+    "policy": "highest_bid",
+    "num_trials": 3,
+    "tasks_per_trial": 40,
+    "throughput_tasks_per_sec": {
+      "mean": 14.6167,
+      "median": 14.72,
+      "p95": 14.756,
+      "max": 14.76
+    },
+    "e2e_latency_mean_sec": {
+      "mean": 1.1034,
+      "median": 1.0734,
+      "p95": 1.1574,
+      "max": 1.1667
+    },
+    "e2e_latency_p50_sec": {
+      "mean": 1.0757,
+      "median": 1.0761,
+      "p95": 1.0772,
+      "max": 1.0773
+    },
+    "e2e_latency_p95_sec": {
+      "mean": 1.6497,
+      "median": 1.6348,
+      "p95": 1.712,
+      "max": 1.7206
+    },
+    "fairness_cv": {
+      "mean": 1.7321,
+      "median": 1.7321,
+      "p95": 1.7321,
+      "max": 1.7321
+    },
+    "mean_task_distribution": {
+      "sim-gpu-rig": 0.0,
+      "sim-cpu-server": 0.0,
+      "sim-laptop": 0.0,
+      "sim-edge-mini": 40.0
+    },
+    "trial_details": [
+      {
+        "policy": "highest_bid",
+        "trial": 1,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.717,
+        "throughput_tasks_per_sec": 14.72,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.0734,
+          "median": 1.0761,
+          "p95": 1.6348,
+          "max": 1.6747
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "sim-gpu-rig": 0,
+          "sim-cpu-server": 0,
+          "sim-laptop": 0,
+          "sim-edge-mini": 40
+        },
+        "failures": 0
+      },
+      {
+        "policy": "highest_bid",
+        "trial": 2,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.71,
+        "throughput_tasks_per_sec": 14.76,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.0702,
+          "median": 1.0773,
+          "p95": 1.5936,
+          "max": 1.6304
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "sim-gpu-rig": 0,
+          "sim-cpu-server": 0,
+          "sim-laptop": 0,
+          "sim-edge-mini": 40
+        },
+        "failures": 0
+      },
+      {
+        "policy": "highest_bid",
+        "trial": 3,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.784,
+        "throughput_tasks_per_sec": 14.37,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.1667,
+          "median": 1.0737,
+          "p95": 1.7206,
+          "max": 1.7303
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 1.7321,
+        "task_distribution": {
+          "sim-gpu-rig": 0,
+          "sim-cpu-server": 0,
+          "sim-laptop": 0,
+          "sim-edge-mini": 40
+        },
+        "failures": 0
+      }
+    ]
+  },
+  "adaptive": {
+    "policy": "adaptive",
+    "num_trials": 3,
+    "tasks_per_trial": 40,
+    "throughput_tasks_per_sec": {
+      "mean": 14.2433,
+      "median": 14.3,
+      "p95": 14.399,
+      "max": 14.41
+    },
+    "e2e_latency_mean_sec": {
+      "mean": 1.2143,
+      "median": 1.1807,
+      "p95": 1.3075,
+      "max": 1.3216
+    },
+    "e2e_latency_p50_sec": {
+      "mean": 1.2843,
+      "median": 1.0815,
+      "p95": 1.6411,
+      "max": 1.7033
+    },
+    "e2e_latency_p95_sec": {
+      "mean": 1.7551,
+      "median": 1.7292,
+      "p95": 1.8215,
+      "max": 1.8317
+    },
+    "fairness_cv": {
+      "mean": 0.0,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0.0
+    },
+    "mean_task_distribution": {
+      "sim-gpu-rig": 10.0,
+      "sim-cpu-server": 10.0,
+      "sim-laptop": 10.0,
+      "sim-edge-mini": 10.0
+    },
+    "trial_details": [
+      {
+        "policy": "adaptive",
+        "trial": 1,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.853,
+        "throughput_tasks_per_sec": 14.02,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.3216,
+          "median": 1.7033,
+          "p95": 1.8317,
+          "max": 1.8511
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "sim-gpu-rig": 10,
+          "sim-cpu-server": 10,
+          "sim-laptop": 10,
+          "sim-edge-mini": 10
+        },
+        "failures": 0
+      },
+      {
+        "policy": "adaptive",
+        "trial": 2,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.797,
+        "throughput_tasks_per_sec": 14.3,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.1406,
+          "median": 1.0815,
+          "p95": 1.7292,
+          "max": 1.7499
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "sim-gpu-rig": 10,
+          "sim-cpu-server": 10,
+          "sim-laptop": 10,
+          "sim-edge-mini": 10
+        },
+        "failures": 0
+      },
+      {
+        "policy": "adaptive",
+        "trial": 3,
+        "total_tasks": 40,
+        "completed_tasks": 40,
+        "total_time_seconds": 2.775,
+        "throughput_tasks_per_sec": 14.41,
+        "e2e_latency_stats_seconds": {
+          "mean": 1.1807,
+          "median": 1.0681,
+          "p95": 1.7044,
+          "max": 1.7101
+        },
+        "avg_scheduling_latency_ms": 0.05,
+        "fairness_cv": 0.0,
+        "task_distribution": {
+          "sim-gpu-rig": 10,
+          "sim-cpu-server": 10,
+          "sim-laptop": 10,
+          "sim-edge-mini": 10
+        },
+        "failures": 0
+      }
+    ]
+  }
+}

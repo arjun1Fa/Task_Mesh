@@ -77,3 +77,15 @@ def test_mwu_weight_evolution_across_diverse_outcomes():
     weights_after_failures = mwu.get_weights()
     assert weights_after_failures["reliability"] < weights_after_cpu_stress["reliability"]
     assert abs(sum(weights_after_failures.values()) - 1.0) < 1e-3
+
+
+def test_qlearning_epsilon_decay():
+    rl = QLearningScheduler(learning_rate=0.1, discount_factor=0.9, epsilon=0.15, epsilon_min=0.01, epsilon_decay=0.9)
+    assert rl.epsilon == 0.15
+    state = (1, 1, 1)
+    rl.update(state, action=0, reward=1.0)
+    assert rl.epsilon < 0.15
+    for _ in range(50):
+        rl.update(state, action=0, reward=1.0)
+    assert rl.epsilon == 0.01
+
