@@ -739,7 +739,8 @@ class OrchestratorRuntime:
                 selected_node_id = decision.selected_node_id
                 ws = await self.registry.get_socket(selected_node_id)
                 if not ws:
-                    # Node connection dropped before dispatch
+                    # Node connection dropped before dispatch, mark offline so scheduler won't re-select it
+                    await self.registry.mark_offline(selected_node_id)
                     await self.queue.enqueue(task)
                     continue
 
@@ -839,6 +840,8 @@ class OrchestratorRuntime:
             logger.warning(f"Rejected message from node [{msg.node_id}]: {sec_err}")
             return
         node_id = msg.node_id or ""
+        if node_id and (await self.registry.get_socket(node_id)) is None:
+            await self.registry.set_socket(node_id, ws)
 
         if msg.message_type == MessageType.PING:
             pong = ProtocolMessage(
@@ -850,7 +853,7 @@ class OrchestratorRuntime:
             await _send_websocket_text(ws, json.dumps(pong.model_dump(mode="json")))
 
         elif msg.message_type == MessageType.HEARTBEAT:
-            await self.registry.update_heartbeat(node_id)
+            await self.registry.update_heartbeat(node_id, websocket=ws)
             # Estimate RTT from heartbeat timestamp
             now = utc_now()
             rtt_ms = (now - msg.timestamp).total_seconds() * 1000.0

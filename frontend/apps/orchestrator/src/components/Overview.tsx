@@ -11,7 +11,9 @@ import {
   Layers,
   ArrowUpRight,
   Clock,
-  Send
+  Send,
+  Shield,
+  LogIn
 } from 'lucide-react'
 import type { ClusterHealth, NodeProfile, Task } from '@shared/types'
 import { api } from '../api/client'
@@ -25,6 +27,7 @@ interface OverviewProps {
   onOpenSubmitModal: () => void
   onNavigateToNodes: () => void
   onNavigateToTasks: () => void
+  onOpenLogin?: () => void
 }
 
 export const Overview: React.FC<OverviewProps> = ({
@@ -35,9 +38,11 @@ export const Overview: React.FC<OverviewProps> = ({
   onOpenSubmitModal,
   onNavigateToNodes,
   onNavigateToTasks,
+  onOpenLogin,
 }) => {
-  const { can, isAuthenticated } = useAuth()
+  const { can, isAuthenticated, login } = useAuth()
   const [isTogglingDispatch, setIsTogglingDispatch] = useState(false)
+  const [isQuickLoggingIn, setIsQuickLoggingIn] = useState(false)
 
   const onlineNodes = nodes.filter((n) => n.status === 'online')
   const degradedNodes = nodes.filter((n) => n.status === 'degraded' || n.status === 'draining')
@@ -74,6 +79,18 @@ export const Overview: React.FC<OverviewProps> = ({
     }
   }
 
+  const handleQuickLogin = async (user: string, pass: string) => {
+    setIsQuickLoggingIn(true)
+    try {
+      await login(user, pass)
+      onRefresh()
+    } catch (e: any) {
+      alert(`Sign in failed: ${e.message}`)
+    } finally {
+      setIsQuickLoggingIn(false)
+    }
+  }
+
   return (
     <div>
       {!isAuthenticated && (
@@ -85,9 +102,11 @@ export const Overview: React.FC<OverviewProps> = ({
             backgroundColor: 'rgba(59, 130, 246, 0.12)',
             border: '1px solid rgba(59, 130, 246, 0.35)',
             borderRadius: 'var(--radius-md)',
-            padding: '0.75rem 1.25rem',
+            padding: '0.85rem 1.25rem',
             marginBottom: '1.25rem',
             color: '#93c5fd',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -95,9 +114,28 @@ export const Overview: React.FC<OverviewProps> = ({
             <div>
               <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Sign In Required to View Live Cluster Telemetry:</span>
               <span style={{ marginLeft: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Use username <code style={{ color: '#fff', fontWeight: 600 }}>admin</code> with password <code style={{ color: '#fff', fontWeight: 600 }}>admin123</code> (or your cluster token) to view connected worker nodes and dispatch tasks.
+                Authenticate to establish the WebSocket feed, view connected worker nodes, and dispatch distributed tasks.
               </span>
             </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => handleQuickLogin('admin', 'admin123')}
+              disabled={isQuickLoggingIn}
+            >
+              <Shield size={12} />
+              <span>Sign In as Admin</span>
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => handleQuickLogin('operator', 'operator123')}
+              disabled={isQuickLoggingIn}
+            >
+              <Shield size={12} color="var(--accent-purple)" />
+              <span>Sign In as Operator</span>
+            </button>
           </div>
         </div>
       )}
@@ -142,10 +180,13 @@ export const Overview: React.FC<OverviewProps> = ({
       <div className="card" style={{ padding: '0.85rem 1.25rem', marginBottom: '1.25rem', backgroundColor: 'var(--bg-surface-elevated)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span className="status-dot dot-online" style={{ width: 10, height: 10 }} />
+            <span
+              className={`status-dot ${!isAuthenticated ? 'dot-degraded' : health?.status === 'healthy' ? 'dot-online' : 'dot-degraded'}`}
+              style={{ width: 10, height: 10 }}
+            />
             <div>
               <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                Cluster Status: {health?.status?.toUpperCase() || 'HEALTHY'}
+                Cluster Status: {!isAuthenticated ? 'AUTHENTICATION REQUIRED' : health?.status?.toUpperCase() || 'HEALTHY'}
               </div>
               <div className="mono" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                 Active Mode: <strong style={{ color: 'var(--accent-blue)' }}>{health?.scheduler_mode?.toUpperCase() || 'ADAPTIVE'}</strong> &bull; Fairness CV: <strong style={{ color: 'var(--accent-emerald)' }}>{health?.fairness_cv !== undefined ? Number(health.fairness_cv).toFixed(3) : '0.000'}</strong>
@@ -154,50 +195,63 @@ export const Overview: React.FC<OverviewProps> = ({
           </div>
 
           <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Dispatch Loop: <strong style={{ color: isDispatchPaused ? 'var(--accent-amber)' : 'var(--accent-emerald)' }}>{isDispatchPaused ? 'PAUSED' : 'ACTIVE'}</strong></span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              Dispatch Loop:{' '}
+              <strong style={{ color: !isAuthenticated ? 'var(--text-muted)' : isDispatchPaused ? 'var(--accent-amber)' : 'var(--accent-emerald)' }}>
+                {!isAuthenticated ? 'AUTH REQUIRED' : isDispatchPaused ? 'PAUSED' : 'ACTIVE'}
+              </strong>
+            </span>
           </div>
         </div>
       </div>
 
       {/* KPI Summary Grid */}
       <div className="kpi-grid">
-        <div className="kpi-card" onClick={onNavigateToNodes} style={{ cursor: 'pointer' }}>
+        <div className="kpi-card" onClick={isAuthenticated ? onNavigateToNodes : onOpenLogin} style={{ cursor: 'pointer' }}>
           <div className="kpi-label">Registered Nodes</div>
-          <div className="kpi-value" style={{ color: 'var(--accent-emerald)' }}>{onlineNodes.length} / {nodes.length}</div>
-          <div className="kpi-sub">{degradedNodes.length} degraded &bull; {offlineNodes.length} offline</div>
+          <div className="kpi-value" style={{ color: !isAuthenticated ? 'var(--text-muted)' : 'var(--accent-emerald)' }}>
+            {!isAuthenticated ? '-- / --' : `${onlineNodes.length} / ${nodes.length}`}
+          </div>
+          <div className="kpi-sub">
+            {!isAuthenticated ? 'Sign in to view nodes' : `${degradedNodes.length} degraded • ${offlineNodes.length} offline`}
+          </div>
         </div>
 
-        <div className="kpi-card" onClick={onNavigateToTasks} style={{ cursor: 'pointer' }}>
+        <div className="kpi-card" onClick={isAuthenticated ? onNavigateToTasks : onOpenLogin} style={{ cursor: 'pointer' }}>
           <div className="kpi-label">Active Running Tasks</div>
-          <div className="kpi-value" style={{ color: 'var(--accent-blue)' }}>{runningTasks.length}</div>
-          <div className="kpi-sub">In-flight on worker nodes</div>
+          <div className="kpi-value" style={{ color: !isAuthenticated ? 'var(--text-muted)' : 'var(--accent-blue)' }}>
+            {!isAuthenticated ? '--' : runningTasks.length}
+          </div>
+          <div className="kpi-sub">{!isAuthenticated ? 'Protected telemetry' : 'In-flight on worker nodes'}</div>
         </div>
 
-        <div className="kpi-card" onClick={onNavigateToTasks} style={{ cursor: 'pointer' }}>
+        <div className="kpi-card" onClick={isAuthenticated ? onNavigateToTasks : onOpenLogin} style={{ cursor: 'pointer' }}>
           <div className="kpi-label">Pending In Queue</div>
-          <div className="kpi-value" style={{ color: 'var(--accent-amber)' }}>{pendingTasks.length}</div>
-          <div className="kpi-sub">Awaiting dispatch</div>
+          <div className="kpi-value" style={{ color: !isAuthenticated ? 'var(--text-muted)' : 'var(--accent-amber)' }}>
+            {!isAuthenticated ? '--' : pendingTasks.length}
+          </div>
+          <div className="kpi-sub">{!isAuthenticated ? 'Protected telemetry' : 'Awaiting dispatch'}</div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-label">Completed Executions</div>
-          <div className="kpi-value">{completedTasks.length}</div>
-          <div className="kpi-sub">{failedTasks.length} execution failures</div>
+          <div className="kpi-value">{!isAuthenticated ? '--' : completedTasks.length}</div>
+          <div className="kpi-sub">{!isAuthenticated ? 'Protected telemetry' : `${failedTasks.length} execution failures`}</div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-label">Cluster CPU Load</div>
-          <div className="kpi-value">{avgCpu}%</div>
+          <div className="kpi-value">{!isAuthenticated ? '--%' : `${avgCpu}%`}</div>
           <div className="progress-bar-bg" style={{ marginTop: '0.4rem' }}>
-            <div className="progress-bar-fill" style={{ width: `${avgCpu}%`, backgroundColor: 'var(--accent-blue)' }} />
+            <div className="progress-bar-fill" style={{ width: `${!isAuthenticated ? 0 : avgCpu}%`, backgroundColor: 'var(--accent-blue)' }} />
           </div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-label">Cluster RAM Footprint</div>
-          <div className="kpi-value">{avgRam}%</div>
+          <div className="kpi-value">{!isAuthenticated ? '--%' : `${avgRam}%`}</div>
           <div className="progress-bar-bg" style={{ marginTop: '0.4rem' }}>
-            <div className="progress-bar-fill" style={{ width: `${avgRam}%`, backgroundColor: 'var(--accent-cyan)' }} />
+            <div className="progress-bar-fill" style={{ width: `${!isAuthenticated ? 0 : avgRam}%`, backgroundColor: 'var(--accent-cyan)' }} />
           </div>
         </div>
       </div>
@@ -209,9 +263,11 @@ export const Overview: React.FC<OverviewProps> = ({
             <Server size={15} color="var(--accent-blue)" />
             Connected Worker Nodes
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={onNavigateToNodes}>
-            View All Nodes &rarr;
-          </button>
+          {isAuthenticated && (
+            <button className="btn btn-secondary btn-sm" onClick={onNavigateToNodes}>
+              View All Nodes &rarr;
+            </button>
+          )}
         </div>
 
         <div className="table-wrapper">
@@ -228,10 +284,30 @@ export const Overview: React.FC<OverviewProps> = ({
               </tr>
             </thead>
             <tbody>
-              {nodes.length === 0 ? (
+              {!isAuthenticated ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                      <Shield size={26} color="var(--accent-blue)" style={{ opacity: 0.8 }} />
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
+                        Cluster Telemetry Protected by RBAC
+                      </div>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', maxWidth: '440px', margin: '0 auto 0.75rem', lineHeight: '1.4' }}>
+                        Connected node agents, hardware specifications, and live heartbeat states require an authenticated session. Sign in as operator or administrator to view this cluster.
+                      </p>
+                      {onOpenLogin && (
+                        <button className="btn btn-primary btn-sm" onClick={onOpenLogin}>
+                          <LogIn size={13} />
+                          <span>Sign In to Cluster</span>
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : nodes.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                    No worker nodes currently registered
+                    No worker nodes currently registered to this cluster
                   </td>
                 </tr>
               ) : (

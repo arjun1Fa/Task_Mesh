@@ -1,7 +1,7 @@
 """Cluster node registry managing connected nodes and active WebSocket connections."""
 
 import asyncio
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import websockets
 
 from taskmesh.core.enums import NodeStatus
@@ -58,7 +58,13 @@ class NodeRegistry:
                 nodes = [n for n in nodes if n.status == status]
             return [n.model_copy() for n in nodes]
 
-    async def update_heartbeat(self, node_id: str, status: Optional[NodeStatus] = None) -> None:
+    async def set_socket(self, node_id: str, websocket: websockets.WebSocketServerProtocol) -> None:
+        async with self._lock:
+            self._sockets[node_id] = websocket
+            if node_id in self._nodes and self._nodes[node_id].status == NodeStatus.OFFLINE:
+                self._nodes[node_id].status = NodeStatus.ONLINE
+
+    async def update_heartbeat(self, node_id: str, status: Optional[NodeStatus] = None, websocket: Optional[Any] = None) -> None:
         async with self._lock:
             node = self._nodes.get(node_id)
             if node:
@@ -67,6 +73,8 @@ class NodeRegistry:
                     node.status = status
                 elif node.status == NodeStatus.OFFLINE:
                     node.status = NodeStatus.ONLINE
+            if websocket is not None:
+                self._sockets[node_id] = websocket
 
     async def update_telemetry(self, node_id: str, telemetry: NodeTelemetry) -> None:
         async with self._lock:
