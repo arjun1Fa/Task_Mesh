@@ -1,6 +1,7 @@
 """Node Agent for distributed compute workers."""
 
 import asyncio
+from collections import deque
 import json
 import logging
 from typing import Optional
@@ -58,6 +59,15 @@ class NodeAgent:
         self.download_mbps_ewma: float = 0.0
         self.advertiser: Optional[NodeDiscoveryAdvertiser] = None
 
+        # Worker Console State & Telemetry History
+        self._task_history: deque = deque(maxlen=100)
+        self._logs_buffer: deque = deque(maxlen=200)
+        self._tasks_completed_count: int = 0
+        self._tasks_failed_count: int = 0
+        self._paused_assignments: bool = False
+        self._maintenance_mode: bool = False
+        self._console_task: Optional[asyncio.Task] = None
+
         # Register default handlers
         self.pool.register_handler("log", log_handler)
         self.pool.register_handler("sleep", sleep_handler)
@@ -86,6 +96,14 @@ class NodeAgent:
                 lan_ip=self.config.lan_ip,
             )
             await self.advertiser.start()
+
+        # Start optional embedded Worker Agent Console
+        if self.config.console_port:
+            from taskmesh.node.console_server import start_console_server
+            self._console_task = asyncio.create_task(
+                start_console_server(self, self.config.console_port),
+                name="worker_console_server",
+            )
 
         urls = [self.config.orchestrator_url]
         if self.config.standby_url and self.config.standby_url not in urls:
@@ -133,6 +151,8 @@ class NodeAgent:
     async def stop(self) -> None:
         self.is_running = False
         self.status = NodeStatus.OFFLINE
+        if self._console_task and not self._console_task.done():
+            self._console_task.cancel()
         if self.advertiser:
             await self.advertiser.stop()
         if self._ws:
@@ -262,6 +282,17 @@ class NodeAgent:
             await self._send(MessageType.TASK_REJECTED, rej.model_dump(mode="json"))
             return
 
+        task_record = {
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "task_type": assignment.task_type,
+            "priority": assignment.priority,
+            "status": "running",
+            "started_at": utc_now().isoformat(),
+            "payload_summary": {k: str(v) for k, v in assignment.payload.items() if k != "binary_meta"} if isinstance(assignment.payload, dict) else {},
+        }
+        self._task_history.append(task_record)
+
         # 1. Send Task Accepted
         acc = TaskAcceptedPayload(task_id=task_id, attempt_id=attempt_id, node_id=self.node_id)
         await self._send(MessageType.TASK_ACCEPTED, acc.model_dump(mode="json"))
@@ -284,6 +315,9 @@ class NodeAgent:
                 try:
                     await asyncio.wait_for(ev.wait(), timeout=min(25.0, assignment.timeout_seconds))
                 except asyncio.TimeoutError:
+                    task_record["status"] = "failed"
+                    task_record["error"] = "Timed out waiting for binary payload chunks"
+                    self._tasks_failed_count += 1
                     fail_payload = TaskFailedPayload(
                         task_id=task_id,
                         attempt_id=attempt_id,
@@ -299,6 +333,7 @@ class NodeAgent:
 
         # Progress and checkpoint callbacks
         async def on_progress(pct: float, message: str) -> None:
+            task_record["progress"] = pct
             p_payload = TaskProgressPayload(task_id=task_id, attempt_id=attempt_id, node_id=self.node_id, progress=pct, message=message)
             await self._send(MessageType.TASK_PROGRESS, p_payload.model_dump(mode="json"))
 
@@ -315,11 +350,26 @@ class NodeAgent:
             binary_payload=binary_bytes,
         )
 
+        task_record["execution_time_seconds"] = result.execution_time_seconds
+        task_record["completed_at"] = utc_now().isoformat()
+
         # 5. Return result
         if result.status == TaskStatus.COMPLETED:
+            task_record["status"] = "completed"
+            self._tasks_completed_count += 1
+            if isinstance(result.output, dict):
+                task_record["ai_metadata"] = {
+                    "model": result.output.get("model"),
+                    "backend": result.output.get("backend"),
+                    "inference_latency_ms": result.output.get("inference_latency_ms"),
+                    "detections_count": len(result.output.get("detections", [])) if "detections" in result.output else 0,
+                }
             done_payload = TaskCompletedPayload(task_id=task_id, attempt_id=attempt_id, node_id=self.node_id, result=result)
             await self._send(MessageType.TASK_COMPLETED, done_payload.model_dump(mode="json"))
         else:
+            task_record["status"] = "failed"
+            task_record["error"] = result.error or "Unknown execution failure"
+            self._tasks_failed_count += 1
             fail_payload = TaskFailedPayload(
                 task_id=task_id,
                 attempt_id=attempt_id,
