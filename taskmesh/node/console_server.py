@@ -3,12 +3,14 @@
 import asyncio
 from collections import deque
 from datetime import datetime, timezone
+import hmac
 import json
 import logging
 import os
 import time
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from urllib.parse import urlparse
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -37,13 +39,76 @@ def create_worker_console_app(agent: Any) -> FastAPI:
         description="Local Node Agent Management and Hardware Monitoring Interface",
     )
 
+    allowed_hosts = {"localhost", "127.0.0.1", "::1", "[::1]"}
+    if getattr(agent.config, "console_host", None):
+        allowed_hosts.add(agent.config.console_host)
+    if getattr(agent.config, "lan_ip", None):
+        allowed_hosts.add(agent.config.lan_ip)
+
+    configured_origins = os.getenv("TASKMESH_WORKER_CORS_ORIGINS", "").split(",")
+    allowed_cors_origins = [o.strip() for o in configured_origins if o.strip()]
+    if not allowed_cors_origins:
+        allowed_cors_origins = [
+            "http://localhost:5174",
+            "http://127.0.0.1:5174",
+            "http://localhost:8081",
+            "http://127.0.0.1:8081",
+        ]
+        if getattr(agent.config, "console_port", None):
+            allowed_cors_origins.append(f"http://localhost:{agent.config.console_port}")
+            allowed_cors_origins.append(f"http://127.0.0.1:{agent.config.console_port}")
+            if getattr(agent.config, "console_host", None) and agent.config.console_host not in ("0.0.0.0", "127.0.0.1", "localhost"):
+                allowed_cors_origins.append(f"http://{agent.config.console_host}:{agent.config.console_port}")
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    def is_allowed_origin(origin: str) -> bool:
+        try:
+            parsed = urlparse(origin)
+            return parsed.hostname in allowed_hosts
+        except Exception:
+            return False
+
+    @app.middleware("http")
+    async def validate_host_and_origin(request: Request, call_next):
+        # Validate Host header
+        host_header = request.headers.get("host", "").split(":")[0]
+        if host_header and host_header not in allowed_hosts and host_header not in ("testserver", "test"):
+            if getattr(agent.config, "console_host", None) not in ("0.0.0.0", ""):
+                return JSONResponse(status_code=403, content={"detail": f"Forbidden host header: '{host_header}'"})
+
+        # Validate Origin header if present (Anti-CSRF)
+        origin_header = request.headers.get("origin")
+        if origin_header and not is_allowed_origin(origin_header) and not origin_header.startswith("http://test"):
+            if request.method in ("POST", "PATCH", "DELETE", "PUT"):
+                return JSONResponse(status_code=403, content={"detail": f"Forbidden cross-origin request from '{origin_header}'"})
+
+        return await call_next(request)
+
+    _mutation_timestamps: deque = deque(maxlen=100)
+
+    def check_rate_limit():
+        now = time.time()
+        while _mutation_timestamps and now - _mutation_timestamps[0] > 60:
+            _mutation_timestamps.popleft()
+        if len(_mutation_timestamps) >= 30:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded for worker mutations")
+        _mutation_timestamps.append(now)
+
+    def require_worker_token(request: Request) -> None:
+        token = request.headers.get("X-Worker-Token")
+        if not token:
+            auth = request.headers.get("Authorization", "")
+            if auth.startswith("Bearer "):
+                token = auth[7:].strip()
+        if not token or not hasattr(agent, "console_token") or not hmac.compare_digest(token, agent.console_token):
+            raise HTTPException(status_code=401, detail="Unauthorized: Worker token required")
 
     start_time = time.time()
 
@@ -211,13 +276,17 @@ def create_worker_console_app(agent: Any) -> FastAPI:
     # -------------------------------------------------------------
 
     @app.post("/api/worker/drain")
-    async def drain_node() -> Dict[str, str]:
+    async def drain_node(request: Request) -> Dict[str, str]:
+        require_worker_token(request)
+        check_rate_limit()
         agent.status = NodeStatus.DRAINING
         logger.info(f"Worker [{agent.node_id}] instructed to DRAIN from Console")
         return {"status": "draining", "node_id": agent.node_id}
 
     @app.post("/api/worker/resume")
-    async def resume_node() -> Dict[str, str]:
+    async def resume_node(request: Request) -> Dict[str, str]:
+        require_worker_token(request)
+        check_rate_limit()
         agent.status = NodeStatus.ONLINE
         setattr(agent, "_maintenance_mode", False)
         setattr(agent, "_paused_assignments", False)
@@ -225,14 +294,18 @@ def create_worker_console_app(agent: Any) -> FastAPI:
         return {"status": "online", "node_id": agent.node_id}
 
     @app.post("/api/worker/maintenance")
-    async def maintenance_node(req: MaintenanceRequest) -> Dict[str, Any]:
+    async def maintenance_node(req: MaintenanceRequest, request: Request) -> Dict[str, Any]:
+        require_worker_token(request)
+        check_rate_limit()
         setattr(agent, "_maintenance_mode", req.maintenance)
         agent.status = NodeStatus.MAINTENANCE if req.maintenance else NodeStatus.ONLINE
         logger.info(f"Worker [{agent.node_id}] maintenance set to {req.maintenance}")
         return {"maintenance": req.maintenance, "status": agent.status.value, "node_id": agent.node_id}
 
     @app.post("/api/worker/concurrency")
-    async def update_concurrency(req: ConcurrencyUpdateRequest) -> Dict[str, Any]:
+    async def update_concurrency(req: ConcurrencyUpdateRequest, request: Request) -> Dict[str, Any]:
+        require_worker_token(request)
+        check_rate_limit()
         if req.concurrency < 1 or req.concurrency > 64:
             raise HTTPException(status_code=400, detail="Concurrency must be between 1 and 64")
         agent.config.worker_concurrency = req.concurrency
@@ -242,7 +315,9 @@ def create_worker_console_app(agent: Any) -> FastAPI:
         return {"concurrency": req.concurrency, "node_id": agent.node_id}
 
     @app.post("/api/worker/pause_assignments")
-    async def toggle_pause() -> Dict[str, Any]:
+    async def toggle_pause(request: Request) -> Dict[str, Any]:
+        require_worker_token(request)
+        check_rate_limit()
         cur = getattr(agent, "_paused_assignments", False)
         new_val = not cur
         setattr(agent, "_paused_assignments", new_val)
@@ -250,11 +325,16 @@ def create_worker_console_app(agent: Any) -> FastAPI:
         return {"paused_assignments": new_val, "node_id": agent.node_id}
 
     @app.get("/api/worker/identity")
-    async def get_identity() -> Dict[str, Any]:
+    async def get_identity(request: Request) -> Dict[str, Any]:
         status_val = agent.status.value
         if getattr(agent, "_maintenance_mode", False):
             status_val = "maintenance"
-        return {
+
+        # Check if request is from local loopback
+        client_host = request.client.host if request.client else "127.0.0.1"
+        is_loopback = client_host in ("127.0.0.1", "::1", "localhost", "testclient")
+
+        res: Dict[str, Any] = {
             "node_id": agent.node_id,
             "hostname": agent.capabilities.hostname or "localhost",
             "orchestrator_url": agent.config.orchestrator_url,
@@ -262,6 +342,10 @@ def create_worker_console_app(agent: Any) -> FastAPI:
             "is_worker": True,
             "agent_version": "0.2.0",
         }
+        # Safely grant console token to loopback caller (Worker Console UI)
+        if is_loopback and hasattr(agent, "console_token"):
+            res["console_token"] = agent.console_token
+        return res
 
     # -------------------------------------------------------------
     # Static UI Serving (Dedicated Worker Agent Console UI)
@@ -289,10 +373,22 @@ def create_worker_console_app(agent: Any) -> FastAPI:
     return app
 
 
-async def start_console_server(agent: Any, port: int) -> None:
-    """Launches the worker console server in the background."""
+async def start_console_server(agent: Any, port: int, host: Optional[str] = None) -> None:
+    """Launches the worker console server in the background, handling port collisions gracefully."""
+    bind_host = host or getattr(agent.config, "console_host", "127.0.0.1") or "127.0.0.1"
     app = create_worker_console_app(agent)
-    cfg = uvicorn.Config(app=app, host="0.0.0.0", port=port, log_level="warning")
+    cfg = uvicorn.Config(app=app, host=bind_host, port=port, log_level="warning")
     server = uvicorn.Server(cfg)
-    logger.info(f"Worker Agent Console active at http://0.0.0.0:{port} (Node: {agent.node_id})")
-    await server.serve()
+    agent._console_server = server
+    try:
+        agent.console_status = "running"
+        logger.info(f"Worker Agent Console active at http://{bind_host}:{port} (Node: {agent.node_id})")
+        await server.serve()
+    except (OSError, SystemExit, Exception) as e:
+        agent.console_status = "unavailable"
+        logger.error(
+            f"Failed to bind worker console server to {bind_host}:{port} ({e}). "
+            "Local dashboard will be unavailable, but task computation continues normally."
+        )
+    finally:
+        agent._console_server = None
