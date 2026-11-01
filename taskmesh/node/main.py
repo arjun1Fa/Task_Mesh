@@ -31,6 +31,7 @@ def main() -> None:
     parser.add_argument("--heartbeat-interval", type=float, default=None, help="Heartbeat interval in seconds")
     parser.add_argument("--telemetry-interval", type=float, default=None, help="Telemetry interval in seconds")
     parser.add_argument("--console-port", type=int, default=None, help="Local worker console HTTP port (e.g. 8081)")
+    parser.add_argument("--console-host", type=str, default=None, help="Local worker console HTTP bind host (default: 127.0.0.1)")
     args = parser.parse_args()
 
     cfg = NodeConfig()
@@ -74,6 +75,8 @@ def main() -> None:
         cfg.telemetry_interval_seconds = args.telemetry_interval
     if args.console_port is not None:
         cfg.console_port = args.console_port
+    if args.console_host is not None:
+        cfg.console_host = args.console_host
 
 
     agent = NodeAgent(config=cfg)
