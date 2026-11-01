@@ -248,7 +248,8 @@ class OrchestratorRuntime:
         while self.is_running and self.config.standby_mode:
             try:
                 if self.config.primary_url:
-                    async with httpx.AsyncClient(timeout=2.0) as client:
+                    headers = {"Authorization": f"Bearer {self.config.join_token}"}
+                    async with httpx.AsyncClient(timeout=2.0, headers=headers) as client:
                         resp = await client.get(f"{self.config.primary_url}/v1/standby/snapshot")
                         if resp.status_code == 200:
                             snapshot = resp.json()
