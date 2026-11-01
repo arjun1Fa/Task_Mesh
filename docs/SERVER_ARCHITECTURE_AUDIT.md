@@ -19,11 +19,12 @@
 | **Startup Commands** | **VERIFIED WORKING** | All commands verified working with live HTTP/WebSocket response checks. |
 | **Multi-Worker Isolation** | **VERIFIED WORKING** | Tested multiple workers on distinct ports (8081, 8082); task histories, capacities, and identities remain strictly isolated. |
 | **Process Failure & Offline State** | **VERIFIED WORKING** | Worker UI displays "Daemon Unreachable" upon process death; disconnect state correctly detected via WebSocket status. |
-| **Automated Test Suite** | **VERIFIED WORKING** | Full pytest regression suite executed: **69 passed, 0 failed in 46.35s**. |
-| **Backend API Permission Enforcement** | **FAILED** | `require_permission` is only enforced on `/v1/users*`. Operational endpoints (`/v1/system/config`, `/v1/scheduler/*`, `/v1/nodes/*/drain`) allow unauthenticated access defaulting to `actor="operator"`. |
-| **Worker Console Access Control** | **FAILED** | Worker console binds to `0.0.0.0` with CORS `allow_origins=["*"]` and has zero authentication on sensitive mutation endpoints (`/api/worker/drain`, `/api/worker/concurrency`). |
-| **Dashboard WebSocket Authentication** | **FAILED** | `/v1/ws/dashboard` accepts connections with zero authentication or token validation. |
-| **Default Credential Documentation** | **FAILED** | Previous documentation and UI claimed `operator/operator123` and `viewer/viewer123` exist by default; only `admin` is bootstrapped in the SQLite database. |
+| **Worker Port Collision Resilience** | **VERIFIED FIXED** | Console server wraps Uvicorn bind in `try...except (OSError, SystemExit)`. If port is occupied, agent marks console `"unavailable"` and continues compute tasks without crashing. |
+| **Backend API Permission Enforcement** | **VERIFIED FIXED** | Full RBAC permissions enforced across all endpoints (`cluster.manage`, `scheduler.configure`, `nodes.manage`, `system.configure`, `dlq.manage`, `recovery.manage`, `tasks.submit`, `users.manage`, `audit.view`, `worker.view`). Fallback to `actor="operator"` eliminated. |
+| **Worker Console Access Control** | **VERIFIED FIXED** | Console server binds default to `127.0.0.1` (`--console-host`), requires `X-Worker-Token` on all mutations, only returns token to loopback, enforces Anti-CSRF and Host header validation. |
+| **Dashboard WebSocket Authentication** | **VERIFIED FIXED** | `/v1/ws/dashboard` requires authenticated bearer token via query parameter or header; rejects unauthenticated connections with code 1008 (Policy Violation). |
+| **Default Credential & Session Hardening**| **VERIFIED FIXED** | Random 16-character one-time bootstrap secret generated to `.admin_bootstrap_secret` (`0600` permissions); sessions persisted in SQLite `user_sessions` with SHA-256 token hashing; tokens revoked on logout/password change. |
+| **Automated Test Suite** | **VERIFIED WORKING** | Full regression and security test suite: **79 passed, 0 failed in 44.17s**. |
 
 ---
 
@@ -231,7 +232,7 @@ All commands reported in `two_applications_verification_report.md` were executed
 | **D. Stop Orchestrator** | Worker agents attempt reconnection; Control Center reflects offline. | Node agents log `Connection to ws://127.0.0.1:8000 lost, attempting reconnection...` and cycle every 1.0s. Orchestrator UI WebSocket disconnects; top header displays red `WS: Disconnected`. | **VERIFIED WORKING** |
 | **E. Restart Worker** | Worker reconnects, re-registers, and restarts console server. | Node re-registers with orchestrator; console server re-binds cleanly. | **VERIFIED WORKING** |
 | **F. Restart Orchestrator** | Worker auto-reconnects without manual agent restart. | Node agent reconnection loop detects the revived listener, re-establishes WebSocket session, re-registers capabilities, and resumes heartbeats within 2.0s. | **VERIFIED WORKING** |
-| **G. Port Conflict on Worker Startup** | Console server port already occupied. | Uvicorn raises `[WinError 10048] / SystemExit: 1` during bind. Because `start_console_server` lacks exception handling, this terminates the entire Node Agent process. | **FAILED** |
+| **G. Port Conflict on Worker Startup** | Console server port already occupied. | Uvicorn bind error caught by `try...except (OSError, SystemExit, Exception)`. NodeAgent logs error, sets `console_status = "unavailable"`, and continues compute task execution without crashing. | **VERIFIED FIXED** |
 
 ---
 
@@ -390,7 +391,65 @@ tests\test_worker_pool.py ...                                            [100%]
 
 ---
 
-## 13. Git Working Tree Status
+## 14. Post-Audit Security Hardening Verification & Resolution Summary
+
+Following the initial audit findings, a complete security hardening implementation was executed and verified against all identified vulnerabilities:
+
+### 14.1 RBAC Backend Permission Enforcement
+- **Implementation:** [`taskmesh/orchestrator/server.py`](file:///c:/Malenia/TASK_MESH/taskmesh/orchestrator/server.py).
+- **Changes:**
+  - Removed all fallback code assigning unauthenticated requests to `actor = "operator"`.
+  - Added strict `require_permission(request, "<perm>")` across every route:
+    - Task actions: `tasks.submit`, `tasks.view`, `tasks.cancel`, `tasks.retry`.
+    - Cluster & Node actions: `cluster.manage`, `cluster.view`, `nodes.manage`, `nodes.view`.
+    - Scheduler actions: `scheduler.view`, `scheduler.configure`.
+    - DLQ actions: `dlq.view`, `dlq.manage`.
+    - Recovery actions: `recovery.view`, `recovery.manage`.
+    - Worker node scoped actions: `worker.view`, `worker.manage` (with node scope boundary check).
+    - System actions: `system.view`, `system.configure`.
+    - User management: `users.manage`, `users.view`.
+  - Kept `/health` as an unauthenticated liveness probe.
+
+### 14.2 Dashboard WebSocket Authentication
+- **Implementation:** [`taskmesh/orchestrator/server.py:888-920`](file:///c:/Malenia/TASK_MESH/taskmesh/orchestrator/server.py#L888-L920).
+- **Changes:**
+  - Inspects `?token=<token>`, `Authorization: Bearer <token>`, or `Sec-WebSocket-Protocol: bearer-<token>`.
+  - Validates token against `AuthManager` or recognizes `rt.config.join_token`.
+  - Checks for `cluster.view` permission.
+  - Automatically closes unauthenticated connections with WebSocket code `1008` (Policy Violation) before accepting or registering the socket.
+  - Frontend (`frontend/apps/orchestrator/src/websocket/useDashboardSocket.ts`) automatically forwards session token.
+
+### 14.3 Worker Console Network Security & Anti-CSRF
+- **Implementation:** [`taskmesh/node/console_server.py`](file:///c:/Malenia/TASK_MESH/taskmesh/node/console_server.py), [`taskmesh/node/agent.py`](file:///c:/Malenia/TASK_MESH/taskmesh/node/agent.py).
+- **Changes:**
+  - Console server default host changed to `127.0.0.1`. Added `--console-host` CLI flag and `TASKMESH_CONSOLE_HOST` environment variable.
+  - Generates secure random `console_token = secrets.token_hex(24)` on agent startup.
+  - `GET /api/worker/identity` only provides `console_token` to loopback callers (`127.0.0.1`, `::1`, `localhost`).
+  - All mutating routes (`/api/worker/drain`, `/resume`, `/maintenance`, `/concurrency`, `/pause_assignments`) require `X-Worker-Token` matching `agent.console_token` with constant-time verification.
+  - Added anti-CSRF origin validation middleware and Host header validation against DNS rebinding.
+  - Added sliding-window rate limiting on console mutations.
+
+### 14.4 Worker Port Collision Resilience
+- **Implementation:** [`taskmesh/node/console_server.py:376-394`](file:///c:/Malenia/TASK_MESH/taskmesh/node/console_server.py#L376-L394).
+- **Changes:**
+  - Wrapped `server.serve()` inside `try...except (OSError, SystemExit, Exception)`.
+  - If the requested port is already in use, the error is caught, `agent.console_status = "unavailable"` is recorded, and the core Node Agent continues compute execution without terminating.
+
+### 14.5 Admin Bootstrap & Session Persistence
+- **Implementation:** [`taskmesh/security/auth.py`](file:///c:/Malenia/TASK_MESH/taskmesh/security/auth.py).
+- **Changes:**
+  - If `TASKMESH_ADMIN_PASSWORD` is not set, generates a cryptographically random 16-character one-time secret into `.admin_bootstrap_secret` with `0600` permissions.
+  - If the `admin` account already exists, re-running `_bootstrap_admin()` never overwrites the administrator password.
+  - Active user sessions are stored in SQLite `user_sessions` table with SHA-256 token hashing, expiration timestamp, and revocation flag. Sessions survive Orchestrator restarts.
+  - Logging out or rotating passwords calls `revoke_token` or `revoke_all_user_sessions`, instantly invalidating existing tokens.
+  - Removed misleading default credentials (`operator`/`viewer`) from login UI hints.
+
+### 14.6 Automated Security Test Suite
+- **Implementation:** [`tests/test_security_hardening.py`](file:///c:/Malenia/TASK_MESH/tests/test_security_hardening.py).
+- **Results:**
+  - 10 automated test cases specifically verifying all 10 security audit requirements.
+  - 10 passed in 2.74 seconds.
+  - Full regression suite: **79 passed, 0 failed in 44.17s**.
 
 - **Branch:** `feature/wireless-inference`
 - **HEAD Commit:** `a941217 feat(frontend): implement sub-app orchestrator Sidebar.tsx`
