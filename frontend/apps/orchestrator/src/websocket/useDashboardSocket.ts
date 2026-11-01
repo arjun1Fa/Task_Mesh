@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { DashboardEvent } from '@shared/types'
+import { getAuthToken } from '../api/client'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
 
@@ -36,7 +37,9 @@ export function useDashboardSocket(options?: UseDashboardSocketOptions): UseDash
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    const wsUrl = `${protocol}//${host}/v1/ws/dashboard`
+    const token = getAuthToken()
+    const query = token ? `?token=${encodeURIComponent(token)}` : ''
+    const wsUrl = `${protocol}//${host}/v1/ws/dashboard${query}`
 
     setStatus(reconnectAttemptRef.current > 0 ? 'reconnecting' : 'connecting')
 
