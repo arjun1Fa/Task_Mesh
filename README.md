@@ -130,8 +130,9 @@ taskmesh-server --host 0.0.0.0 --port 8000 --mode adaptive --secure --secret you
 ```
 
 Once started, the **TaskMesh Control Center** is served natively at `http://127.0.0.1:8000/`.
-- Default Super Admin credentials: `admin` / `admin123`
-- Pre-built with complete cluster telemetry, live task queue, scheduling explainer, and DLQ management.
+- **Secure Bootstrap**: On first startup, TaskMesh generates a cryptographically random one-time password for the `admin` account and outputs it to `.admin_bootstrap_secret` (with private `0600` permissions), or uses `TASKMESH_ADMIN_PASSWORD` if defined. Hardcoded fallback credentials have been completely eliminated.
+- **Persistent Sessions**: User sessions are persisted in SQLite (`user_sessions` table) with SHA-256 token hashing and survive Orchestrator restarts. Tokens are immediately revoked on logout and password rotation.
+- **Strict Authorization**: All REST and WebSocket endpoints enforce role-based access control (RBAC). No unauthenticated requests are permitted.
 
 *Firewall Notes:*
 - **Windows**: Allow inbound TCP port 8000 via Windows Defender Firewall:
@@ -144,17 +145,20 @@ Once started, the **TaskMesh Control Center** is served natively at `http://127.
   ```
 
 ### Node Agent Setup (Machines 2, 3, etc. - Workers)
-Worker nodes connect directly to the Orchestrator's LAN IP address and can run an optional embedded **Worker Agent Console**:
+Worker nodes connect directly to the Orchestrator's LAN IP address and run an embedded, isolated **Worker Agent Console**:
 
 ```bash
-# Machine 2 (CPU Server or standard laptop with local console on port 8081)
+# Machine 2 (CPU Server or standard laptop with local console on port 8081, loopback bind)
 taskmesh-node --node-id node-laptop --url ws://192.168.1.100:8000/v1/ws/nodes --workers 4 --console-port 8081
 
-# Machine 3 (GPU Workstation - Secure mode with console on port 8082)
-taskmesh-node --node-id node-gpu-rig --url ws://192.168.1.100:8000/v1/ws/nodes --workers 8 --console-port 8082 --secure --secret your-cluster-shared-secret
+# Machine 3 (GPU Workstation - Secure mode with console accessible over LAN)
+taskmesh-node --node-id node-gpu-rig --url ws://192.168.1.100:8000/v1/ws/nodes --workers 8 --console-port 8082 --console-host 0.0.0.0 --secure --secret your-cluster-shared-secret
 ```
 
-Access the local Worker Agent Console directly at `http://<worker-ip>:<console-port>/` or via the top-bar switch button in the central control center.
+- **Loopback Default**: Worker consoles bind strictly to `127.0.0.1` by default to prevent unauthorized network exposure. Configure `--console-host 0.0.0.0` or `TASKMESH_CONSOLE_HOST` only when LAN dashboard access is required.
+- **Worker Token Authentication**: Mutating operations (`/api/worker/drain`, `/concurrency`, `/maintenance`) require an `X-Worker-Token` header. The console token is securely exposed only to loopback callers via `/api/worker/identity`.
+- **Anti-CSRF & Host Header Validation**: All cross-origin and unrecognized host headers are rejected with HTTP 403.
+- **Port Conflict Resilience**: If the requested console port is occupied, the Node Agent logs a warning, marks `console_status = "unavailable"`, and continues compute task execution without crashing.
 
 ---
 
@@ -358,7 +362,7 @@ python benchmarks/benchmark_distributed.py
 
 ## Verification & Test Suite
 
-The test suite consists of **43 comprehensive automated tests** across 15 test suites covering all units, components, security checks, and multi-process distributed flows.
+The test suite consists of **79 comprehensive automated tests** across 22 test suites covering all units, components, security checks, multi-process distributed flows, and security hardening boundaries.
 
 ```bash
 python -m pytest tests/ -v
@@ -366,26 +370,29 @@ python -m pytest tests/ -v
 
 ```text
 ============================= test session starts =============================
-tests/test_adaptive_pipeline.py ............                             [ 11%]
-tests/test_ai_inference.py ...                                           [ 18%]
-tests/test_api_endpoints.py ......                                       [ 32%]
-tests/test_cli.py ......                                                 [ 37%]
-tests/test_core_models.py ..                                             [ 39%]
-tests/test_distributed_flow.py .                                         [ 41%]
-tests/test_eligibility.py ..                                             [ 44%]
-tests/test_ewma_adaptation.py .                                          [ 46%]
-tests/test_failover.py ..                                                [ 48%]
-tests/test_failover_e2e_process.py .                                     [ 51%]
-tests/test_leases_and_idempotency.py ...                                 [ 58%]
-tests/test_multi_process_distributed.py .                                [ 60%]
-tests/test_node_failure_recovery_process.py .                            [ 62%]
-tests/test_persistence_restart.py .                                      [ 65%]
-tests/test_priority_queue.py ..                                          [ 69%]
-tests/test_retry_and_dlq.py ...                                          [ 76%]
-tests/test_rl_and_mwu_advanced.py ...                                    [ 83%]
-tests/test_security.py .......                                           [ 93%]
+tests/test_adaptive_pipeline.py .....                                    [  6%]
+tests/test_ai_inference.py ...                                           [ 10%]
+tests/test_api_endpoints.py .                                            [ 11%]
+tests/test_cli.py ...                                                    [ 15%]
+tests/test_core_models.py ..                                             [ 17%]
+tests/test_distributed_flow.py .                                         [ 18%]
+tests/test_eligibility.py ...                                            [ 22%]
+tests/test_ewma_adaptation.py .                                          [ 24%]
+tests/test_failover.py .                                                 [ 25%]
+tests/test_failover_e2e_process.py .                                     [ 26%]
+tests/test_frontend_backend_api.py .....                                 [ 32%]
+tests/test_leases_and_idempotency.py ...                                 [ 36%]
+tests/test_multi_process_distributed.py .                                [ 37%]
+tests/test_node_failure_recovery_process.py .                            [ 39%]
+tests/test_persistence_restart.py .                                      [ 40%]
+tests/test_priority_queue.py ..                                          [ 43%]
+tests/test_retry_and_dlq.py ...                                          [ 46%]
+tests/test_rl_and_mwu_advanced.py ....                                   [ 51%]
+tests/test_security.py .......                                           [ 60%]
+tests/test_security_hardening.py ..........                              [ 73%]
+tests/test_wireless_inference.py ..................                      [ 96%]
 tests/test_worker_pool.py ...                                            [100%]
-============================= 43 passed in 31.42s =============================
+======================= 79 passed, 2 warnings in 44.17s =======================
 ```
 
 ---
