@@ -102,7 +102,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="app-container">
+    <div className="app-shell">
       {/* Worker Top Header (Locked to this machine's node identity) */}
       <WorkerHeader
         identity={identity}
@@ -110,7 +110,7 @@ export const App: React.FC = () => {
         isOnline={!isOffline}
       />
 
-      <div className="layout-body">
+      <div className="main-layout">
         {/* Worker Local Navigation */}
         <WorkerSidebar
           currentPage={currentPage}
@@ -120,7 +120,7 @@ export const App: React.FC = () => {
         />
 
         {/* Worker Main Workspace */}
-        <main className="content-pane">
+        <main className="content-area">
           {currentPage === 'overview' && (
             <WorkerOverview
               overview={overview}

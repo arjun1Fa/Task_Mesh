@@ -66,6 +66,27 @@ class NodeAgent:
         self._console_server: Optional[Any] = None
         self._task_history: deque = deque(maxlen=100)
         self._logs_buffer: deque = deque(maxlen=200)
+
+        # Attach logging handler to capture node agent logs for the console UI
+        class BufferLogHandler(logging.Handler):
+            def __init__(self, target_buffer: deque):
+                super().__init__()
+                self.target_buffer = target_buffer
+
+            def emit(self, record: logging.LogRecord):
+                try:
+                    self.target_buffer.append({
+                        "timestamp": utc_now().isoformat(),
+                        "severity": record.levelname,
+                        "source": record.name,
+                        "message": self.format(record),
+                    })
+                except Exception:
+                    pass
+
+        self._log_handler = BufferLogHandler(self._logs_buffer)
+        self._log_handler.setFormatter(logging.Formatter("%(message)s"))
+        logging.getLogger("taskmesh").addHandler(self._log_handler)
         self._tasks_completed_count: int = 0
         self._tasks_failed_count: int = 0
         self._paused_assignments: bool = False
@@ -287,6 +308,7 @@ class NodeAgent:
             return
 
         task_record = {
+            "id": task_id,
             "task_id": task_id,
             "attempt_id": attempt_id,
             "task_type": assignment.task_type,

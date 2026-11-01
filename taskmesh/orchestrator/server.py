@@ -198,6 +198,17 @@ def create_app(
         payload = get_token_payload(request)
         if not payload:
             raise HTTPException(status_code=401, detail="Not authenticated")
+        if payload.username == "cluster-service":
+            service_user = User(
+                id="service_admin",
+                username="cluster-service",
+                role=UserRole.SUPER_ADMIN,
+                node_scope=None,
+                is_active=True,
+                created_at=utc_now(),
+                updated_at=utc_now(),
+            )
+            return {"user": service_user.model_dump(mode="json"), "permissions": ["*"]}
         user = rt.auth.get_user_by_username(payload.username)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")

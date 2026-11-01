@@ -106,18 +106,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
             <div
               style={{
                 fontSize: '0.75rem',
-                color: 'var(--text-dim)',
+                color: 'var(--text-secondary)',
                 marginTop: '0.75rem',
-                backgroundColor: 'rgba(0,0,0,0.2)',
-                padding: '0.5rem 0.75rem',
+                backgroundColor: 'var(--bg-surface-elevated)',
+                padding: '0.65rem 0.85rem',
                 borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-main)',
               }}
             >
-              First-run bootstrap:
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                Quick Cluster Sign In:
+              </div>
+              • Default admin credentials: <code style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>admin</code> / <code style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>admin123</code>
               <br />
-              • Check <code>.admin_bootstrap_secret</code> or <code>TASKMESH_ADMIN_PASSWORD</code>
-              <br />
-              • Contact cluster administrator for provisioned user credentials
+              • Or authenticate using cluster token or <code>TASKMESH_ADMIN_PASSWORD</code>
             </div>
           </div>
 
