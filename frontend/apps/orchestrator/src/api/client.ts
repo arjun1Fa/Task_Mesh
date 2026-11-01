@@ -98,6 +98,9 @@ export const api = {
   getClusterHealth: () =>
     request<ClusterHealth>('/v1/cluster/health'),
 
+  getHealth: () =>
+    request<ClusterHealth>('/v1/cluster/health'),
+
   getDetailedHealth: () =>
     request<Record<string, any>>('/v1/system/health/detailed'),
 
