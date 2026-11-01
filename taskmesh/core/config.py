@@ -65,5 +65,6 @@ class NodeConfig(BaseModel):
     is_local: bool = Field(default_factory=lambda: os.getenv("TASKMESH_IS_LOCAL", "false").lower() == "true")
     lan_ip: Optional[str] = Field(default_factory=lambda: os.getenv("TASKMESH_LAN_IP", None))
     lan_port: Optional[int] = Field(default_factory=lambda: int(os.getenv("TASKMESH_LAN_PORT", "0")) or None)
+    console_host: str = Field(default_factory=lambda: os.getenv("TASKMESH_CONSOLE_HOST", "127.0.0.1"))
     console_port: Optional[int] = Field(default_factory=lambda: int(os.getenv("TASKMESH_CONSOLE_PORT", "0")) or None)
 

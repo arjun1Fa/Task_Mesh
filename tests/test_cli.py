@@ -31,10 +31,10 @@ def cli_environment(monkeypatch) -> Generator[OrchestratorRuntime, None, None]:
     cfg = OrchestratorConfig()
     runtime = OrchestratorRuntime(repository=repo, config=cfg)
     app = create_app(runtime=runtime)
-    client = TestClient(app)
+    client = TestClient(app, headers={"Authorization": f"Bearer {cfg.join_token}"})
 
     # Monkeypatch get_client in cli_module to route requests to FastAPI TestClient
-    def mock_get_client(base_url: str):
+    def mock_get_client(base_url: str, token: str | None = None):
         return client
 
     monkeypatch.setattr(cli_module, "get_client", mock_get_client)

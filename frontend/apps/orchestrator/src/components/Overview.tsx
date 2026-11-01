@@ -36,7 +36,7 @@ export const Overview: React.FC<OverviewProps> = ({
   onNavigateToNodes,
   onNavigateToTasks,
 }) => {
-  const { can } = useAuth()
+  const { can, isAuthenticated } = useAuth()
   const [isTogglingDispatch, setIsTogglingDispatch] = useState(false)
 
   const onlineNodes = nodes.filter((n) => n.status === 'online')
@@ -76,6 +76,32 @@ export const Overview: React.FC<OverviewProps> = ({
 
   return (
     <div>
+      {!isAuthenticated && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: 'rgba(59, 130, 246, 0.12)',
+            border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.75rem 1.25rem',
+            marginBottom: '1.25rem',
+            color: '#93c5fd',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <Activity size={18} color="var(--accent-blue)" />
+            <div>
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Sign In Required to View Live Cluster Telemetry:</span>
+              <span style={{ marginLeft: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                Use username <code style={{ color: '#fff', fontWeight: 600 }}>admin</code> with password <code style={{ color: '#fff', fontWeight: 600 }}>admin123</code> (or your cluster token) to view connected worker nodes and dispatch tasks.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <div>

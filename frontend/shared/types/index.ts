@@ -206,6 +206,7 @@ export interface WorkerIdentity {
   status: string
   is_worker: boolean
   agent_version: string
+  console_token?: string
 }
 
 export interface WorkerOverview {

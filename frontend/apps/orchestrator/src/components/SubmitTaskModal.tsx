@@ -13,13 +13,13 @@ export const SubmitTaskModal: React.FC<SubmitTaskModalProps> = ({
   onClose,
   onTaskSubmitted,
 }) => {
-  const [taskType, setTaskType] = useState('benchmark')
+  const [taskType, setTaskType] = useState('image_inference')
   const [priority, setPriority] = useState(5)
   const [offloadPolicy, setOffloadPolicy] = useState('remote_allowed')
   const [requiresGpu, setRequiresGpu] = useState(false)
   const [requiredMemoryMb, setRequiredMemoryMb] = useState(512)
   const [payloadText, setPayloadText] = useState(
-    JSON.stringify({ matrix_size: 500, iterations: 5 }, null, 2)
+    JSON.stringify({ model: 'yolov8n', batch_size: 1 }, null, 2)
   )
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -28,23 +28,34 @@ export const SubmitTaskModal: React.FC<SubmitTaskModalProps> = ({
 
   const handleTaskTypeChange = (type: string) => {
     setTaskType(type)
-    if (type === 'benchmark') {
-      setPayloadText(JSON.stringify({ matrix_size: 500, iterations: 5 }, null, 2))
+    if (type === 'image_inference') {
+      setPayloadText(JSON.stringify({ model: 'yolov8n', batch_size: 1 }, null, 2))
       setRequiresGpu(false)
-    } else if (type === 'object_detection' || type === 'yolo_inference') {
-      setPayloadText(JSON.stringify({ confidence_threshold: 0.5, model: 'yolov8n' }, null, 2))
-      setRequiresGpu(true)
-    } else if (type === 'echo') {
+    } else if (type === 'cpu_test') {
+      setPayloadText(JSON.stringify({ iterations: 50000 }, null, 2))
+      setRequiresGpu(false)
+    } else if (type === 'sleep') {
+      setPayloadText(JSON.stringify({ duration: 1.0 }, null, 2))
+      setRequiresGpu(false)
+    } else if (type === 'log') {
       setPayloadText(JSON.stringify({ message: 'Hello from TaskMesh control console' }, null, 2))
       setRequiresGpu(false)
     }
   }
+
+  const supportedTaskTypes = ['image_inference', 'cpu_test', 'sleep', 'log']
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     try {
       setSubmitting(true)
+      if (!supportedTaskTypes.includes(taskType)) {
+        throw new Error(
+          `Unsupported task type "${taskType}". Supported handlers: ${supportedTaskTypes.join(', ')}`
+        )
+      }
+
       let parsedPayload = {}
       try {
         parsedPayload = JSON.parse(payloadText)
@@ -126,9 +137,10 @@ export const SubmitTaskModal: React.FC<SubmitTaskModalProps> = ({
                   value={taskType}
                   onChange={(e) => handleTaskTypeChange(e.target.value)}
                 >
-                  <option value="benchmark">CPU Benchmark (Matrix Math)</option>
-                  <option value="object_detection">AI Inference (YOLOv8n)</option>
-                  <option value="echo">Echo (Diagnostic Round-trip)</option>
+                  <option value="image_inference">AI Inference (YOLOv8n / Tensor)</option>
+                  <option value="cpu_test">CPU Test (Math Benchmark)</option>
+                  <option value="sleep">Sleep (Async Delay)</option>
+                  <option value="log">Log (Diagnostic Message)</option>
                 </select>
               </div>
 

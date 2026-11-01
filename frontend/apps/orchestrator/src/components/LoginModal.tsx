@@ -10,7 +10,7 @@ interface LoginModalProps {
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
   const { login } = useAuth()
   const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('admin123')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -106,20 +106,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
             <div
               style={{
                 fontSize: '0.75rem',
-                color: 'var(--text-dim)',
+                color: 'var(--text-secondary)',
                 marginTop: '0.75rem',
-                backgroundColor: 'rgba(0,0,0,0.2)',
-                padding: '0.5rem 0.75rem',
+                backgroundColor: 'var(--bg-surface-elevated)',
+                padding: '0.65rem 0.85rem',
                 borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-main)',
               }}
             >
-              Default accounts:
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                Quick Cluster Sign In:
+              </div>
+              • Default admin credentials: <code style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>admin</code> / <code style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>admin123</code>
               <br />
-              • <code>admin</code> / <code>admin123</code> (Super Admin)
-              <br />
-              • <code>operator</code> / <code>operator123</code> (Cluster Operator)
-              <br />
-              • <code>viewer</code> / <code>viewer123</code> (Read-Only Viewer)
+              • Or authenticate using cluster token or <code>TASKMESH_ADMIN_PASSWORD</code>
             </div>
           </div>
 

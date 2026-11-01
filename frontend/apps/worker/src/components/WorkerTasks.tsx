@@ -123,43 +123,48 @@ export const WorkerTasks: React.FC = () => {
               )}
 
               {(activeTab === 'active' ? activeTasks : activeTab === 'completed' ? completedTasks : failedTasks).map(
-                (task: Task) => (
-                  <tr key={task.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedTask(task)}>
-                    <td className="mono" style={{ fontWeight: 600 }}>
-                      <span title={task.id}>{task.id.slice(0, 14)}...</span>
-                    </td>
-                    <td>
-                      <span className="badge badge-blue">{task.task_type}</span>
-                    </td>
-                    <td>
-                      <span className="badge badge-slate">P{task.priority}</span>
-                    </td>
-                    <td>
-                      <span className={`status-pill ${task.status}`}>{task.status}</span>
-                    </td>
-                    <td className="mono" style={{ fontSize: '0.8rem' }}>
-                      {task.result?.execution_time_seconds ? (
-                        <span style={{ color: 'var(--accent-green)' }}>
-                          {Number(task.result.execution_time_seconds).toFixed(2)}s
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--accent-cyan)' }}>Running...</span>
-                      )}
-                    </td>
-                    <td style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
-                      {new Date(task.scheduled_at || task.created_at).toLocaleTimeString()}
-                    </td>
-                    <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                      <button
-                        className="btn btn-secondary btn-icon"
-                        title="Inspect Task"
-                        onClick={() => setSelectedTask(task)}
-                      >
-                        <Eye size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                )
+                (task: any) => {
+                  const taskId = task.id || task.task_id || 'unknown'
+                  const execTime = task.result?.execution_time_seconds ?? task.execution_time_seconds
+                  const createdAt = task.scheduled_at || task.created_at || task.started_at
+                  return (
+                    <tr key={taskId} style={{ cursor: 'pointer' }} onClick={() => setSelectedTask(task)}>
+                      <td className="mono" style={{ fontWeight: 600 }}>
+                        <span title={taskId}>{taskId.slice(0, 14)}...</span>
+                      </td>
+                      <td>
+                        <span className="badge badge-blue">{task.task_type}</span>
+                      </td>
+                      <td>
+                        <span className="badge badge-slate">P{task.priority ?? 5}</span>
+                      </td>
+                      <td>
+                        <span className={`status-pill ${task.status}`}>{task.status}</span>
+                      </td>
+                      <td className="mono" style={{ fontSize: '0.8rem' }}>
+                        {execTime !== undefined ? (
+                          <span style={{ color: 'var(--accent-green)' }}>
+                            {Number(execTime).toFixed(2)}s
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--accent-cyan)' }}>Running...</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+                        {createdAt ? new Date(createdAt).toLocaleTimeString() : 'N/A'}
+                      </td>
+                      <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="btn btn-secondary btn-icon"
+                          title="Inspect Task"
+                          onClick={() => setSelectedTask(task)}
+                        >
+                          <Eye size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                }
               )}
             </tbody>
           </table>
@@ -174,7 +179,7 @@ export const WorkerTasks: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <Layers size={18} color="var(--accent-purple)" />
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-                  Worker Task Record: <span className="mono">{selectedTask.id}</span>
+                  Worker Task Record: <span className="mono">{(selectedTask as any).id || (selectedTask as any).task_id}</span>
                 </h3>
               </div>
               <button className="btn btn-secondary btn-icon" onClick={() => setSelectedTask(null)}>
@@ -199,8 +204,8 @@ export const WorkerTasks: React.FC = () => {
                 <div className="card" style={{ margin: 0, padding: '0.75rem' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Compute Time</div>
                   <div className="mono" style={{ marginTop: '0.25rem', color: 'var(--accent-green)' }}>
-                    {selectedTask.result?.execution_time_seconds
-                      ? `${Number(selectedTask.result.execution_time_seconds).toFixed(3)}s`
+                    {(selectedTask as any).result?.execution_time_seconds !== undefined || (selectedTask as any).execution_time_seconds !== undefined
+                      ? `${Number((selectedTask as any).result?.execution_time_seconds ?? (selectedTask as any).execution_time_seconds).toFixed(3)}s`
                       : 'Executing'}
                   </div>
                 </div>
@@ -220,11 +225,11 @@ export const WorkerTasks: React.FC = () => {
                     fontSize: '0.78rem',
                   }}
                 >
-                  {JSON.stringify(selectedTask.payload, null, 2)}
+                  {JSON.stringify((selectedTask as any).payload || (selectedTask as any).payload_summary || {}, null, 2)}
                 </pre>
               </div>
 
-              {selectedTask.result && (
+              {((selectedTask as any).result || (selectedTask as any).ai_metadata) && (
                 <div>
                   <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Output / Result</div>
                   <pre
@@ -239,7 +244,7 @@ export const WorkerTasks: React.FC = () => {
                       fontSize: '0.78rem',
                     }}
                   >
-                    {JSON.stringify(selectedTask.result, null, 2)}
+                    {JSON.stringify((selectedTask as any).result || (selectedTask as any).ai_metadata, null, 2)}
                   </pre>
                 </div>
               )}

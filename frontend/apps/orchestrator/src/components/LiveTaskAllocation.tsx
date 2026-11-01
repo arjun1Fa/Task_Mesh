@@ -18,15 +18,17 @@ import type { NodeProfile, Task, SchedulerDecision } from '@shared/types'
 interface LiveTaskAllocationProps {
   nodes: NodeProfile[]
   tasks: Task[]
-  decisions: SchedulerDecision[]
-  onRefresh: () => void
+  decisions?: SchedulerDecision[]
+  onRefresh?: () => void
+  onSelectNode?: (nodeId: string) => void
 }
 
 export const LiveTaskAllocation: React.FC<LiveTaskAllocationProps> = ({
   nodes,
   tasks,
-  decisions,
+  decisions = [],
   onRefresh,
+  onSelectNode,
 }) => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [selectedDecision, setSelectedDecision] = useState<SchedulerDecision | null>(null)
@@ -37,7 +39,7 @@ export const LiveTaskAllocation: React.FC<LiveTaskAllocationProps> = ({
 
   const handleSelectTask = (task: Task) => {
     setSelectedTask(task)
-    const matchDec = decisions.find((d) => d.task_id === task.id) || null
+    const matchDec = (decisions || []).find((d) => d.task_id === task.id) || null
     setSelectedDecision(matchDec)
   }
 

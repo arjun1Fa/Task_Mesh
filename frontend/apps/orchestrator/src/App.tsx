@@ -18,7 +18,7 @@ import { SubmitTaskModal } from './components/SubmitTaskModal'
 import { LoginModal } from './components/LoginModal'
 import { api } from './api/client'
 import { useDashboardSocket } from './websocket/useDashboardSocket'
-import type { ClusterHealth, NodeProfile, Task } from '@shared/types'
+import type { ClusterHealth, NodeProfile, SchedulerDecision, Task } from '@shared/types'
 import '@shared/styles/theme.css'
 
 export const App: React.FC = () => {
@@ -29,6 +29,7 @@ export const App: React.FC = () => {
   const [health, setHealth] = useState<ClusterHealth | null>(null)
   const [nodes, setNodes] = useState<NodeProfile[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [decisions, setDecisions] = useState<SchedulerDecision[]>([])
   const [dlqCount, setDlqCount] = useState<number>(0)
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
@@ -39,16 +40,18 @@ export const App: React.FC = () => {
   // Fetch initial cluster state
   const refreshClusterData = useCallback(async () => {
     try {
-      const [h, n, t, dlq] = await Promise.all([
+      const [h, n, t, dec, dlq] = await Promise.all([
         api.getHealth().catch(() => null),
         api.listNodes().catch(() => []),
         api.listTasks(undefined, 100).catch(() => []),
+        api.getSchedulerDecisions(50).catch(() => []),
         api.listDlq().catch(() => []),
       ])
 
       if (h) setHealth(h)
       if (n) setNodes(n)
       if (t) setTasks(t)
+      if (dec) setDecisions(dec)
       setDlqCount(dlq.length)
     } catch (err) {
       console.error('Failed to refresh cluster data:', err)
@@ -65,30 +68,196 @@ export const App: React.FC = () => {
 
   // Real-time WebSocket connection
   const { status: wsStatus } = useDashboardSocket({
-    onMessage: (msg) => {
-      if (msg.type === 'telemetry_update' && msg.data) {
-        setNodes((prevNodes) =>
-          prevNodes.map((node) =>
-            node.id === msg.data.node_id ? { ...node, telemetry: msg.data } : node
+    onEvent: (evt) => {
+      if (!evt || !evt.event_type) return
+
+      switch (evt.event_type) {
+        case 'task.submitted': {
+          const tData = evt.data || {}
+          setTasks((prev) => {
+            const taskId = tData.task_id || evt.entity_id
+            if (!taskId) return prev
+            const existing = prev.find((x) => x.id === taskId)
+            if (existing) return prev
+            const newTask: Task = {
+              id: taskId,
+              task_type: tData.task_type || 'task',
+              payload: tData.payload || {},
+              priority: tData.priority ?? 5,
+              status: 'pending',
+              created_at: evt.timestamp || new Date().toISOString(),
+              updated_at: evt.timestamp || new Date().toISOString(),
+              timeout_seconds: 60,
+              current_attempt: 0,
+              requires_gpu: false,
+              required_memory_mb: 256,
+              required_capabilities: [],
+              offload_policy: tData.offload_policy || 'remote_allowed',
+              retry_count: 0,
+              progress: 0,
+              metadata: {},
+            }
+            return [newTask, ...prev.slice(0, 99)]
+          })
+          break
+        }
+        case 'task.assigned': {
+          const tData = evt.data || {}
+          const taskId = tData.task_id || evt.entity_id
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    status: 'running',
+                    assigned_node_id: tData.selected_node_id,
+                    current_attempt_id: tData.attempt_id,
+                    updated_at: evt.timestamp || new Date().toISOString(),
+                  }
+                : t
+            )
           )
-        )
-      } else if (msg.type === 'task_event' && msg.data) {
-        setTasks((prevTasks) => {
-          const index = prevTasks.findIndex((t) => t.id === msg.data.id)
-          if (index >= 0) {
-            const updated = [...prevTasks]
-            updated[index] = msg.data
-            return updated
+          break
+        }
+        case 'task.started': {
+          const tData = evt.data || {}
+          const taskId = tData.task_id || evt.entity_id
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    status: 'running',
+                    assigned_node_id: tData.node_id || t.assigned_node_id,
+                    updated_at: evt.timestamp || new Date().toISOString(),
+                  }
+                : t
+            )
+          )
+          break
+        }
+        case 'task.progress': {
+          const tData = evt.data || {}
+          const taskId = tData.task_id || evt.entity_id
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    progress: tData.progress ?? t.progress,
+                    updated_at: evt.timestamp || new Date().toISOString(),
+                  }
+                : t
+            )
+          )
+          break
+        }
+        case 'task.completed': {
+          const tData = evt.data || {}
+          const taskId = tData.task_id || evt.entity_id
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    status: 'completed',
+                    progress: 1.0,
+                    assigned_node_id: tData.node_id || t.assigned_node_id,
+                    result: {
+                      task_id: taskId,
+                      attempt_id: tData.attempt_id || '',
+                      node_id: tData.node_id || '',
+                      status: 'completed',
+                      execution_time_seconds: tData.execution_time_seconds ?? 0,
+                      output: tData.output,
+                      metrics: tData.metrics,
+                      completed_at: evt.timestamp || new Date().toISOString(),
+                    },
+                    updated_at: evt.timestamp || new Date().toISOString(),
+                  }
+                : t
+            )
+          )
+          break
+        }
+        case 'task.failed': {
+          const tData = evt.data || {}
+          const taskId = tData.task_id || evt.entity_id
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    status: 'failed',
+                    error_message: tData.error,
+                    updated_at: evt.timestamp || new Date().toISOString(),
+                  }
+                : t
+            )
+          )
+          if (tData.moved_to_dlq) {
+            setDlqCount((c) => c + 1)
           }
-          return [msg.data, ...prevTasks.slice(0, 99)]
-        })
-      } else if (msg.type === 'node_status' && msg.data) {
-        setNodes((prevNodes) =>
-          prevNodes.map((n) =>
-            n.id === msg.data.node_id ? { ...n, status: msg.data.status } : n
+          break
+        }
+        case 'task.cancelled': {
+          const tData = evt.data || {}
+          const taskId = tData.task_id || evt.entity_id
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    status: 'cancelled',
+                    error_message: tData.reason,
+                    updated_at: evt.timestamp || new Date().toISOString(),
+                  }
+                : t
+            )
           )
-        )
+          break
+        }
+        case 'node.online':
+        case 'node.registered': {
+          const nData = evt.data || {}
+          const nodeId = nData.node_id || evt.entity_id
+          setNodes((prev) => {
+            const idx = prev.findIndex((n) => n.id === nodeId)
+            if (idx >= 0) {
+              const updated = [...prev]
+              updated[idx] = { ...updated[idx], status: 'online' }
+              return updated
+            }
+            return prev
+          })
+          refreshClusterData()
+          break
+        }
+        case 'node.offline':
+        case 'node.disconnected': {
+          const nData = evt.data || {}
+          const nodeId = nData.node_id || evt.entity_id
+          setNodes((prev) =>
+            prev.map((n) => (n.id === nodeId ? { ...n, status: 'offline' } : n))
+          )
+          break
+        }
+        case 'node.status_changed': {
+          const nData = evt.data || {}
+          const nodeId = nData.node_id || evt.entity_id
+          if (nodeId && nData.status) {
+            setNodes((prev) =>
+              prev.map((n) => (n.id === nodeId ? { ...n, status: nData.status } : n))
+            )
+          }
+          break
+        }
+        default:
+          break
       }
+    },
+    onHealth: (h) => {
+      if (h) setHealth(h)
     },
   })
 
@@ -100,7 +269,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="app-container">
+    <div className="app-shell">
       {/* Top Header */}
       <Header
         clusterStatus={health?.status || 'unknown'}
@@ -109,7 +278,7 @@ export const App: React.FC = () => {
         onOpenSubmitTask={() => setIsSubmitModalOpen(true)}
       />
 
-      <div className="layout-body">
+      <div className="main-layout">
         {/* Left Navigation Sidebar */}
         <Sidebar
           currentPage={currentPage}
@@ -120,7 +289,7 @@ export const App: React.FC = () => {
         />
 
         {/* Main Workspace Content */}
-        <main className="content-pane">
+        <main className="content-area">
           {currentPage === 'overview' && (
             <Overview
               health={health}
@@ -146,6 +315,8 @@ export const App: React.FC = () => {
             <LiveTaskAllocation
               nodes={nodes}
               tasks={tasks}
+              decisions={decisions}
+              onRefresh={refreshClusterData}
               onSelectNode={handleSelectNode}
             />
           )}

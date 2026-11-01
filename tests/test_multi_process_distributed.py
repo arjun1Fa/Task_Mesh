@@ -36,7 +36,8 @@ async def test_independent_os_process_cluster_execution():
 
         # Wait for orchestrator to be ready
         ready = False
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        auth_headers = {"Authorization": "Bearer default-mesh-secret"}
+        async with httpx.AsyncClient(timeout=2.0, headers=auth_headers) as client:
             for _ in range(30):
                 try:
                     resp = await client.get(f"http://127.0.0.1:{port}/v1/cluster/health")
@@ -62,7 +63,7 @@ async def test_independent_os_process_cluster_execution():
 
         # 3. Wait for all 3 nodes to connect and register
         nodes_registered = False
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, headers=auth_headers) as client:
             for _ in range(35):
                 try:
                     resp = await client.get(f"http://127.0.0.1:{port}/v1/cluster/health")
@@ -78,7 +79,7 @@ async def test_independent_os_process_cluster_execution():
 
         # 4. Submit 6 tasks to the cluster
         task_ids = []
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=5.0, headers=auth_headers) as client:
             for i in range(6):
                 req = {
                     "task_type": "log" if i % 2 == 0 else "cpu_test",

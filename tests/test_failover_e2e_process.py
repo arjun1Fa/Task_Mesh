@@ -42,7 +42,8 @@ async def test_real_process_primary_standby_failover():
         processes.append(("Primary", p_primary))
 
         # Wait for Primary to become healthy
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        auth_headers = {"Authorization": "Bearer default-mesh-secret"}
+        async with httpx.AsyncClient(timeout=2.0, headers=auth_headers) as client:
             ready_primary = False
             for _ in range(30):
                 try:
@@ -66,7 +67,7 @@ async def test_real_process_primary_standby_failover():
         processes.append(("Standby", p_standby))
 
         # Wait for Standby to become healthy
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, headers=auth_headers) as client:
             ready_standby = False
             for _ in range(30):
                 try:
@@ -91,7 +92,7 @@ async def test_real_process_primary_standby_failover():
         processes.append(("NodeAgent", p_node))
 
         # Wait for node to register with Primary
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, headers=auth_headers) as client:
             for _ in range(30):
                 resp = await client.get(f"http://127.0.0.1:{port_primary}/v1/nodes/node-failover-agent")
                 if resp.status_code == 200:
@@ -99,7 +100,7 @@ async def test_real_process_primary_standby_failover():
                 await asyncio.sleep(0.2)
 
         # 4. Submit Task 1 to Primary
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=5.0, headers=auth_headers) as client:
             resp1 = await client.post(
                 f"http://127.0.0.1:{port_primary}/v1/tasks",
                 json={"task_type": "log", "payload": {"msg": "run-on-primary"}, "priority": 10},

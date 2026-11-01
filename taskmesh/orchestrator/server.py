@@ -3,9 +3,11 @@
 from contextlib import asynccontextmanager
 import json
 import logging
+import os
+import time
 from typing import Any, Dict, List, Optional
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -99,9 +101,23 @@ def create_app(
         lifespan=lifespan,
     )
 
+    configured_origins = os.getenv("TASKMESH_CORS_ORIGINS", "").split(",")
+    allowed_origins = [o.strip() for o in configured_origins if o.strip()]
+    if not allowed_origins:
+        allowed_origins = [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5174",
+            f"http://localhost:{cfg.port}",
+            f"http://127.0.0.1:{cfg.port}",
+        ]
+        if cfg.host not in ("0.0.0.0", "127.0.0.1", "localhost"):
+            allowed_origins.append(f"http://{cfg.host}:{cfg.port}")
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -114,11 +130,27 @@ def create_app(
     # ---------------------------------------------------------
 
     def get_token_payload(request: Request) -> Optional[TokenPayload]:
+        token = None
         auth_hdr = request.headers.get("Authorization", "")
         if auth_hdr.startswith("Bearer "):
             token = auth_hdr[7:].strip()
-            return rt.auth.validate_token(token)
-        return None
+        elif "token" in request.query_params:
+            token = request.query_params.get("token", "").strip()
+
+        if not token:
+            return None
+
+        # Support cluster join_token as service token for internal nodes and recovery
+        if token == rt.config.join_token:
+            return TokenPayload(
+                username="cluster-service",
+                role=UserRole.SUPER_ADMIN,
+                node_scope=None,
+                permissions=sorted(list(PERMISSIONS_MAP[UserRole.SUPER_ADMIN])),
+                exp=time.time() + 86400,
+            )
+
+        return rt.auth.validate_token(token)
 
     def require_permission(request: Request, permission: str) -> TokenPayload:
         payload = get_token_payload(request)
@@ -166,6 +198,17 @@ def create_app(
         payload = get_token_payload(request)
         if not payload:
             raise HTTPException(status_code=401, detail="Not authenticated")
+        if payload.username == "cluster-service":
+            service_user = User(
+                id="service_admin",
+                username="cluster-service",
+                role=UserRole.SUPER_ADMIN,
+                node_scope=None,
+                is_active=True,
+                created_at=utc_now(),
+                updated_at=utc_now(),
+            )
+            return {"user": service_user.model_dump(mode="json"), "permissions": ["*"]}
         user = rt.auth.get_user_by_username(payload.username)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -237,20 +280,24 @@ def create_app(
 
     @app.get("/v1/audit/logs", response_model=List[AuditEvent])
     async def get_audit_logs(
+        request: Request,
         actor: Optional[str] = Query(None),
         action: Optional[str] = Query(None),
         result: Optional[str] = Query(None),
         limit: int = Query(100, ge=1, le=500),
     ) -> List[AuditEvent]:
+        require_permission(request, "audit.view")
         return rt.audit.query(actor=actor, action=action, result=result, limit=limit)
 
     @app.get("/v1/system/logs")
     async def get_system_logs(
+        request: Request,
         level: Optional[str] = Query(None),
         source: Optional[str] = Query(None),
         search: Optional[str] = Query(None),
         limit: int = Query(200, ge=1, le=1000),
     ) -> List[Any]:
+        require_permission(request, "logs.view")
         return [entry.model_dump(mode="json") for entry in rt.events.get_recent_logs(level=level, source=source, search=search, limit=limit)]
 
     # ---------------------------------------------------------
@@ -258,7 +305,8 @@ def create_app(
     # ---------------------------------------------------------
 
     @app.post("/v1/tasks", response_model=Task, status_code=201)
-    async def submit_task(req: TaskCreate) -> Task:
+    async def submit_task(req: TaskCreate, request: Request) -> Task:
+        require_permission(request, "tasks.submit")
         return await rt.submit_task(req)
 
     @app.post("/v1/tasks/binary", response_model=Task, status_code=201)
@@ -270,6 +318,7 @@ def create_app(
         offload_policy: str = Query("wireless_allowed"),
         requires_gpu: bool = Query(False),
     ) -> Task:
+        require_permission(request, "tasks.submit")
         content_type = request.headers.get("content-type", "")
         binary_data = b""
         if "multipart/form-data" in content_type:
@@ -296,7 +345,8 @@ def create_app(
         return await rt.submit_task(req, binary_data=binary_data)
 
     @app.get("/v1/tasks/{task_id}/payload")
-    async def get_task_payload(task_id: str) -> Response:
+    async def get_task_payload(task_id: str, request: Request) -> Response:
+        require_permission(request, "tasks.view")
         payload_data = await rt.payload_store.get_payload(task_id)
         if not payload_data:
             raise HTTPException(status_code=404, detail=f"No binary payload found for task {task_id}")
@@ -306,27 +356,32 @@ def create_app(
 
     @app.get("/v1/tasks", response_model=List[Task])
     async def list_tasks(
+        request: Request,
         status: Optional[TaskStatus] = Query(None),
         limit: int = Query(100, ge=1, le=1000),
     ) -> List[Task]:
+        require_permission(request, "tasks.view")
         return await rt.repo.list(status=status, limit=limit)
 
     @app.get("/v1/tasks/{task_id}", response_model=Task)
-    async def get_task(task_id: str) -> Task:
+    async def get_task(task_id: str, request: Request) -> Task:
+        require_permission(request, "tasks.view")
         t = await rt.repo.get(task_id)
         if not t:
             raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
         return t
 
     @app.post("/v1/tasks/{task_id}/cancel", response_model=Task)
-    async def cancel_task(task_id: str, reason: str = "Client cancellation") -> Task:
+    async def cancel_task(task_id: str, request: Request, reason: str = "Client cancellation") -> Task:
+        require_permission(request, "tasks.cancel")
         try:
             return await rt.cancel_task(task_id, reason=reason)
         except TaskNotFoundError:
             raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
     @app.post("/v1/tasks/{task_id}/retry", response_model=Task)
-    async def retry_task(task_id: str) -> Task:
+    async def retry_task(task_id: str, request: Request) -> Task:
+        require_permission(request, "tasks.retry")
         try:
             return await rt.retry_task(task_id)
         except TaskNotFoundError:
@@ -337,26 +392,32 @@ def create_app(
     # ---------------------------------------------------------
 
     @app.get("/v1/nodes", response_model=List[NodeProfile])
-    async def list_nodes(status: Optional[NodeStatus] = Query(None)) -> List[NodeProfile]:
+    async def list_nodes(request: Request, status: Optional[NodeStatus] = Query(None)) -> List[NodeProfile]:
+        require_permission(request, "nodes.view")
         return await rt.registry.list_nodes(status=status)
 
     @app.get("/v1/nodes/{node_id}", response_model=NodeProfile)
-    async def get_node(node_id: str) -> NodeProfile:
+    async def get_node(node_id: str, request: Request) -> NodeProfile:
+        require_permission(request, "nodes.view")
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
         return n
 
     @app.post("/v1/nodes/{node_id}/drain")
-    async def drain_node(node_id: str) -> Dict[str, str]:
+    async def drain_node(node_id: str, request: Request) -> Dict[str, str]:
+        actor_payload = require_permission(request, "nodes.manage")
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
-        await rt.drain_node(node_id)
+        await rt.drain_node(node_id, actor=actor_payload.username)
         return {"status": "draining", "node_id": node_id}
 
-    @app.get("/v1/cluster/health", response_model=ClusterHealthResponse)
-    async def cluster_health() -> ClusterHealthResponse:
+    @app.get("/health")
+    async def health_ping() -> Dict[str, str]:
+        return {"status": "ok"}
+
+    async def get_cluster_health() -> ClusterHealthResponse:
         nodes = await rt.registry.list_nodes()
         online_nodes = [n for n in nodes if n.status == NodeStatus.ONLINE]
         all_tasks = await rt.repo.list(limit=2000)
@@ -377,12 +438,18 @@ def create_app(
             scheduler_mode=rt.config.scheduler_mode.value,
         )
 
+    @app.get("/v1/cluster/health", response_model=ClusterHealthResponse)
+    async def cluster_health(request: Request) -> ClusterHealthResponse:
+        require_permission(request, "cluster.view")
+        return await get_cluster_health()
+
     # ---------------------------------------------------------
     # REST API Routes: Scheduler & Explainability
     # ---------------------------------------------------------
 
     @app.get("/v1/scheduler/status")
-    async def scheduler_status() -> Dict[str, Any]:
+    async def scheduler_status(request: Request) -> Dict[str, Any]:
+        require_permission(request, "scheduler.view")
         resp: Dict[str, Any] = {
             "mode": rt.config.scheduler_mode.value,
             "fairness_cv": await rt.get_fairness_metric(),
@@ -399,17 +466,19 @@ def create_app(
         return resp
 
     @app.get("/v1/scheduler/decisions")
-    async def scheduler_decisions(limit: int = Query(50, ge=1, le=200)) -> List[Any]:
+    async def scheduler_decisions(request: Request, limit: int = Query(50, ge=1, le=200)) -> List[Any]:
+        require_permission(request, "scheduler.view")
         return await rt.get_decisions(limit=limit)
 
     @app.get("/v1/scheduler/diagnostics")
-    async def get_scheduler_diagnostics() -> Dict[str, Any]:
+    async def get_scheduler_diagnostics(request: Request) -> Dict[str, Any]:
+        require_permission(request, "scheduler.view")
         return await rt.get_scheduler_diagnostics()
 
     @app.post("/v1/scheduler/mode")
     async def change_scheduler_mode(req: SchedulerModeRequest, request: Request) -> Dict[str, str]:
-        payload = get_token_payload(request)
-        actor = payload.username if payload else "operator"
+        actor_payload = require_permission(request, "scheduler.configure")
+        actor = actor_payload.username
         try:
             mode_enum = SchedulerMode(req.mode.lower())
         except ValueError:
@@ -420,8 +489,8 @@ def create_app(
 
     @app.post("/v1/scheduler/toggles")
     async def update_adaptive_toggles(req: SchedulerTogglesRequest, request: Request) -> Dict[str, Any]:
-        payload = get_token_payload(request)
-        actor = payload.username if payload else "operator"
+        actor_payload = require_permission(request, "scheduler.configure")
+        actor = actor_payload.username
         try:
             updated = await rt.set_adaptive_toggles(req.toggles, actor=actor)
             return {"status": "updated", "toggles": updated}
@@ -433,20 +502,21 @@ def create_app(
     # ---------------------------------------------------------
 
     @app.get("/v1/cluster/dispatch/status")
-    async def get_dispatch_status() -> Dict[str, Any]:
+    async def get_dispatch_status(request: Request) -> Dict[str, Any]:
+        require_permission(request, "cluster.view")
         return {"dispatch_paused": rt._dispatch_paused}
 
     @app.post("/v1/cluster/dispatch/pause")
     async def pause_dispatch(request: Request) -> Dict[str, Any]:
-        payload = get_token_payload(request)
-        actor = payload.username if payload else "operator"
+        actor_payload = require_permission(request, "cluster.manage")
+        actor = actor_payload.username
         await rt.set_dispatch_paused(True, actor=actor)
         return {"status": "paused", "dispatch_paused": True}
 
     @app.post("/v1/cluster/dispatch/resume")
     async def resume_dispatch(request: Request) -> Dict[str, Any]:
-        payload = get_token_payload(request)
-        actor = payload.username if payload else "operator"
+        actor_payload = require_permission(request, "cluster.manage")
+        actor = actor_payload.username
         await rt.set_dispatch_paused(False, actor=actor)
         return {"status": "resumed", "dispatch_paused": False}
 
@@ -456,31 +526,39 @@ def create_app(
 
     @app.post("/v1/nodes/{node_id}/resume")
     async def resume_node(node_id: str, request: Request) -> Dict[str, str]:
+        actor_payload = require_permission(request, "nodes.manage")
+        actor = actor_payload.username
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
-        payload = get_token_payload(request)
-        actor = payload.username if payload else "operator"
         await rt.resume_node(node_id, actor=actor)
         return {"status": "online", "node_id": node_id}
 
     @app.post("/v1/nodes/{node_id}/maintenance")
     async def set_node_maintenance(node_id: str, req: NodeMaintenanceRequest, request: Request) -> Dict[str, Any]:
+        actor_payload = require_permission(request, "nodes.manage")
+        actor = actor_payload.username
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
-        payload = get_token_payload(request)
-        actor = payload.username if payload else "operator"
         await rt.set_node_maintenance(node_id, is_maint=req.maintenance, actor=actor)
         return {"status": "maintenance" if req.maintenance else "online", "node_id": node_id}
 
     @app.delete("/v1/nodes/{node_id}")
-    async def delete_node(node_id: str, force: bool = Query(False), request: Request = None) -> Dict[str, str]:
+    async def delete_node(node_id: str, request: Request, force: bool = Query(False)) -> Dict[str, str]:
+        actor_payload = require_permission(request, "nodes.manage")
+        actor = actor_payload.username
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
-        payload = get_token_payload(request) if request else None
-        actor = payload.username if payload else "operator"
+        try:
+            await rt.remove_node(node_id, force=force, actor=actor)
+            return {"status": "removed", "node_id": node_id}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        n = await rt.registry.get_node(node_id)
+        if not n:
+            raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
         try:
             await rt.remove_node(node_id, force=force, actor=actor)
             return {"status": "removed", "node_id": node_id}
@@ -488,7 +566,8 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(e))
 
     @app.get("/v1/nodes/{node_id}/tasks", response_model=List[Task])
-    async def get_node_tasks(node_id: str, limit: int = Query(50, ge=1, le=200)) -> List[Task]:
+    async def get_node_tasks(node_id: str, request: Request, limit: int = Query(50, ge=1, le=200)) -> List[Task]:
+        require_permission(request, "tasks.view")
         return await rt.get_node_tasks(node_id, limit=limit)
 
     # ---------------------------------------------------------
@@ -496,7 +575,8 @@ def create_app(
     # ---------------------------------------------------------
 
     @app.get("/v1/system/config")
-    async def get_system_config() -> Dict[str, Any]:
+    async def get_system_config(request: Request) -> Dict[str, Any]:
+        require_permission(request, "system.view")
         return {
             "host": rt.config.host,
             "port": rt.config.port,
@@ -519,12 +599,13 @@ def create_app(
 
     @app.patch("/v1/system/config")
     async def update_system_config(req: ConfigUpdateRequest, request: Request) -> Dict[str, Any]:
-        payload = get_token_payload(request)
-        actor = payload.username if payload else "operator"
+        actor_payload = require_permission(request, "system.configure")
+        actor = actor_payload.username
         return await rt.update_system_config(req.updates, actor=actor)
 
     @app.get("/v1/system/health/detailed")
-    async def get_detailed_health() -> Dict[str, Any]:
+    async def get_detailed_health(request: Request) -> Dict[str, Any]:
+        require_permission(request, "health.view")
         return await rt.get_detailed_health()
 
     # ---------------------------------------------------------
@@ -532,7 +613,10 @@ def create_app(
     # ---------------------------------------------------------
 
     @app.get("/v1/worker/{node_id}/overview")
-    async def get_worker_overview(node_id: str) -> Dict[str, Any]:
+    async def get_worker_overview(node_id: str, request: Request) -> Dict[str, Any]:
+        actor_payload = require_permission(request, "worker.view")
+        if not rt.auth.check_node_access(actor_payload, node_id):
+            raise HTTPException(status_code=403, detail="Forbidden: node scope mismatch")
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
@@ -573,7 +657,10 @@ def create_app(
         }
 
     @app.get("/v1/worker/{node_id}/hardware")
-    async def get_worker_hardware(node_id: str) -> Dict[str, Any]:
+    async def get_worker_hardware(node_id: str, request: Request) -> Dict[str, Any]:
+        actor_payload = require_permission(request, "worker.view")
+        if not rt.auth.check_node_access(actor_payload, node_id):
+            raise HTTPException(status_code=403, detail="Forbidden: node scope mismatch")
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
@@ -603,7 +690,10 @@ def create_app(
         }
 
     @app.get("/v1/worker/{node_id}/tasks")
-    async def get_worker_tasks(node_id: str) -> Dict[str, Any]:
+    async def get_worker_tasks(node_id: str, request: Request) -> Dict[str, Any]:
+        actor_payload = require_permission(request, "worker.view")
+        if not rt.auth.check_node_access(actor_payload, node_id):
+            raise HTTPException(status_code=403, detail="Forbidden: node scope mismatch")
         tasks = await rt.get_node_tasks(node_id, limit=200)
         active = [t.model_dump(mode="json") for t in tasks if t.status == TaskStatus.RUNNING]
         completed = [t.model_dump(mode="json") for t in tasks if t.status == TaskStatus.COMPLETED]
@@ -617,7 +707,10 @@ def create_app(
         }
 
     @app.get("/v1/worker/{node_id}/pool")
-    async def get_worker_pool(node_id: str) -> Dict[str, Any]:
+    async def get_worker_pool(node_id: str, request: Request) -> Dict[str, Any]:
+        actor_payload = require_permission(request, "worker.view")
+        if not rt.auth.check_node_access(actor_payload, node_id):
+            raise HTTPException(status_code=403, detail="Forbidden: node scope mismatch")
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
@@ -634,7 +727,10 @@ def create_app(
         }
 
     @app.get("/v1/worker/{node_id}/network")
-    async def get_worker_network(node_id: str) -> Dict[str, Any]:
+    async def get_worker_network(node_id: str, request: Request) -> Dict[str, Any]:
+        actor_payload = require_permission(request, "worker.view")
+        if not rt.auth.check_node_access(actor_payload, node_id):
+            raise HTTPException(status_code=403, detail="Forbidden: node scope mismatch")
         n = await rt.registry.get_node(node_id)
         if not n:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
@@ -651,18 +747,19 @@ def create_app(
             "chunk_size_bytes": rt.config.chunk_size_bytes,
         }
 
-
     # ---------------------------------------------------------
     # REST API Routes: DLQ
     # ---------------------------------------------------------
 
     @app.get("/v1/dlq")
-    async def list_dlq() -> List[Any]:
+    async def list_dlq(request: Request) -> List[Any]:
+        require_permission(request, "dlq.view")
         items = await rt.dlq.list_items()
         return [i.model_dump(mode="json") for i in items]
 
     @app.post("/v1/dlq/{task_id}/recover", response_model=Task)
-    async def recover_dlq(task_id: str) -> Task:
+    async def recover_dlq(task_id: str, request: Request) -> Task:
+        require_permission(request, "dlq.manage")
         recovered = await rt.dlq.recover(task_id)
         if not recovered:
             raise HTTPException(status_code=404, detail=f"Task {task_id} not in DLQ")
@@ -675,11 +772,13 @@ def create_app(
     # ---------------------------------------------------------
 
     @app.get("/v1/standby/snapshot")
-    async def get_standby_snapshot() -> Dict[str, Any]:
+    async def get_standby_snapshot(request: Request) -> Dict[str, Any]:
+        require_permission(request, "recovery.view")
         return await rt.create_snapshot()
 
     @app.get("/v1/standby/status")
-    async def get_standby_status() -> Dict[str, Any]:
+    async def get_standby_status(request: Request) -> Dict[str, Any]:
+        require_permission(request, "recovery.view")
         return {
             "standby_mode": rt.config.standby_mode,
             "primary_url": rt.config.primary_url,
@@ -687,7 +786,8 @@ def create_app(
         }
 
     @app.post("/v1/standby/promote")
-    async def promote_standby() -> Dict[str, str]:
+    async def promote_standby(request: Request) -> Dict[str, str]:
+        require_permission(request, "recovery.manage")
         await rt.promote_to_primary()
         return {"status": "promoted", "role": "primary"}
 
@@ -798,11 +898,39 @@ def create_app(
 
     @app.websocket("/v1/ws/dashboard")
     async def websocket_dashboard_endpoint(websocket: WebSocket):
+        token = websocket.query_params.get("token")
+        if not token:
+            auth_hdr = websocket.headers.get("authorization", "")
+            if auth_hdr.startswith("Bearer "):
+                token = auth_hdr[7:].strip()
+            elif "sec-websocket-protocol" in websocket.headers:
+                protocols = [p.strip() for p in websocket.headers["sec-websocket-protocol"].split(",")]
+                for p in protocols:
+                    if p.startswith("bearer-"):
+                        token = p[7:].strip()
+
+        payload = None
+        if token:
+            if token == rt.config.join_token:
+                payload = TokenPayload(
+                    username="cluster-service",
+                    role=UserRole.SUPER_ADMIN,
+                    node_scope=None,
+                    permissions=sorted(list(PERMISSIONS_MAP[UserRole.SUPER_ADMIN])),
+                    exp=time.time() + 86400,
+                )
+            else:
+                payload = rt.auth.validate_token(token)
+
+        if not payload or not rt.auth.check_permission(payload, "cluster.view"):
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Unauthorized")
+            return
+
         await websocket.accept()
         await rt.events.register(websocket)
         try:
             # Send initial sync payload
-            health = await cluster_health()
+            health = await get_cluster_health()
             await websocket.send_text(json.dumps({
                 "event_type": "initial_sync",
                 "timestamp": utc_now().isoformat(),

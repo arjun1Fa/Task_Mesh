@@ -14,7 +14,8 @@ from taskmesh.security.auth import UserRole
 
 
 @pytest_asyncio.fixture
-async def app_and_runtime(tmp_path):
+async def app_and_runtime(tmp_path, monkeypatch):
+    monkeypatch.setenv("TASKMESH_ADMIN_PASSWORD", "admin123")
     db_file = str(tmp_path / "test_api.db")
     cfg = OrchestratorConfig(db_url=f"sqlite:///{db_file}")
     repo = MemoryTaskRepository()
@@ -29,7 +30,11 @@ async def app_and_runtime(tmp_path):
 @pytest.mark.asyncio
 async def test_auth_bootstrap_and_login(app_and_runtime):
     app, rt = app_and_runtime
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {rt.config.join_token}"},
+    ) as client:
         # Default bootstrap user 'admin'
         res = await client.post("/v1/auth/login", json={"username": "admin", "password": "wrongpassword"})
         assert res.status_code == 401
@@ -52,7 +57,11 @@ async def test_auth_bootstrap_and_login(app_and_runtime):
 @pytest.mark.asyncio
 async def test_rbac_roles_and_permissions(app_and_runtime):
     app, rt = app_and_runtime
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {rt.config.join_token}"},
+    ) as client:
         # Login as admin
         admin_login = await client.post("/v1/auth/login", json={"username": "admin", "password": "admin123"})
         admin_token = admin_login.json()["token"]
@@ -86,7 +95,11 @@ async def test_rbac_roles_and_permissions(app_and_runtime):
 @pytest.mark.asyncio
 async def test_master_controls_dispatch_pause_resume(app_and_runtime):
     app, rt = app_and_runtime
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {rt.config.join_token}"},
+    ) as client:
         # Initial status
         res = await client.get("/v1/cluster/dispatch/status")
         assert res.status_code == 200
@@ -108,7 +121,11 @@ async def test_master_controls_dispatch_pause_resume(app_and_runtime):
 @pytest.mark.asyncio
 async def test_scheduler_diagnostics_and_mode_switch(app_and_runtime):
     app, rt = app_and_runtime
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {rt.config.join_token}"},
+    ) as client:
         # Get diagnostics
         diag_res = await client.get("/v1/scheduler/diagnostics")
         assert diag_res.status_code == 200
@@ -158,7 +175,11 @@ async def test_node_extended_operations(app_and_runtime):
         pass
     await rt.registry.register(profile, DummyWS())
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {rt.config.join_token}"},
+    ) as client:
         # Maintenance mode
         maint_res = await client.post("/v1/nodes/test-node-01/maintenance", json={"maintenance": True})
         assert maint_res.status_code == 200

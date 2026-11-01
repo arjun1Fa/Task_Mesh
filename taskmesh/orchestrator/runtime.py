@@ -248,7 +248,8 @@ class OrchestratorRuntime:
         while self.is_running and self.config.standby_mode:
             try:
                 if self.config.primary_url:
-                    async with httpx.AsyncClient(timeout=2.0) as client:
+                    headers = {"Authorization": f"Bearer {self.config.join_token}"}
+                    async with httpx.AsyncClient(timeout=2.0, headers=headers) as client:
                         resp = await client.get(f"{self.config.primary_url}/v1/standby/snapshot")
                         if resp.status_code == 200:
                             snapshot = resp.json()
@@ -882,6 +883,11 @@ class OrchestratorRuntime:
                 if task and task.status == TaskStatus.RUNNING:
                     task.updated_at = utc_now()
                     await self.repo.save(task)
+                    await self.events.broadcast(
+                        event_type="task.started",
+                        data={"task_id": task_id, "node_id": node_id, "attempt_id": msg.payload.get("attempt_id")},
+                        entity_id=task_id,
+                    )
 
         elif msg.message_type == MessageType.TASK_PROGRESS:
             task_id = msg.payload.get("task_id")
@@ -891,6 +897,11 @@ class OrchestratorRuntime:
                 if task:
                     task.progress = pct
                     await self.repo.save(task)
+                    await self.events.broadcast(
+                        event_type="task.progress",
+                        data={"task_id": task_id, "progress": pct, "node_id": node_id},
+                        entity_id=task_id,
+                    )
 
         elif msg.message_type == MessageType.TASK_CHECKPOINT:
             task_id = msg.payload.get("task_id")

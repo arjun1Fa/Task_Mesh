@@ -15,6 +15,7 @@ import type {
 
 class WorkerApiClient {
   private baseUrl: string
+  private consoleToken: string | null = null
 
   constructor(baseUrl: string = '') {
     this.baseUrl = baseUrl
@@ -22,9 +23,13 @@ class WorkerApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
-    const headers = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...((options.headers as Record<string, string>) || {}),
+    }
+
+    if (this.consoleToken) {
+      headers['X-Worker-Token'] = this.consoleToken
     }
 
     const response = await fetch(url, { ...options, headers })
@@ -45,7 +50,11 @@ class WorkerApiClient {
 
   // Identity Autodiscovery
   async getIdentity(): Promise<WorkerIdentity> {
-    return this.request<WorkerIdentity>('/api/worker/identity')
+    const identity = await this.request<WorkerIdentity>('/api/worker/identity')
+    if (identity.console_token) {
+      this.consoleToken = identity.console_token
+    }
+    return identity
   }
 
   // Telemetry & Overview

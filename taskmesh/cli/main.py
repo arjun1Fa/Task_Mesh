@@ -2,13 +2,16 @@
 
 import argparse
 import json
+import os
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import httpx
 
 
-def get_client(base_url: str) -> httpx.Client:
-    return httpx.Client(base_url=base_url, timeout=10.0)
+def get_client(base_url: str, token: Optional[str] = None) -> httpx.Client:
+    auth_token = token or os.getenv("TASKMESH_TOKEN") or os.getenv("TASKMESH_JOIN_TOKEN") or "default-mesh-secret"
+    headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
+    return httpx.Client(base_url=base_url, timeout=10.0, headers=headers)
 
 
 def print_json(data: Any) -> None:
@@ -191,6 +194,7 @@ def handle_dlq_cmd(args: argparse.Namespace, base_url: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="taskmeshctl", description="TaskMesh Cluster CLI")
     parser.add_argument("--url", default="http://127.0.0.1:8000", help="TaskMesh Orchestrator HTTP URL")
+    parser.add_argument("--token", default=os.getenv("TASKMESH_TOKEN", ""), help="Auth token or join token")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
