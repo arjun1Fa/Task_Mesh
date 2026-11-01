@@ -16,7 +16,11 @@ async def test_rest_api_lifecycle():
     rt = OrchestratorRuntime(repository=repo, config=cfg)
     app = create_app(runtime=rt)
 
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {cfg.join_token}"},
+    ) as client:
         # 1. Cluster health check
         health_res = await client.get("/v1/cluster/health")
         assert health_res.status_code == 200
