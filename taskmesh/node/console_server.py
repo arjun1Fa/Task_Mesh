@@ -70,8 +70,18 @@ def create_worker_console_app(agent: Any) -> FastAPI:
         completed_count = getattr(agent, "_tasks_completed_count", 0)
         failed_count = getattr(agent, "_tasks_failed_count", 0)
 
-        # Connection status check
-        ws_status = "connected" if agent._ws and not agent._ws.closed else "disconnected"
+        # Connection status check safely supporting various websockets library versions
+        is_connected = False
+        if agent._ws is not None:
+            state = getattr(agent._ws, "state", None)
+            if state is not None:
+                # In websockets 14+, State.OPEN == 1 or "OPEN"
+                is_connected = str(state).upper() in ["1", "OPEN", "STATE.OPEN"]
+            elif hasattr(agent._ws, "closed"):
+                is_connected = not agent._ws.closed
+            else:
+                is_connected = True
+        ws_status = "connected" if is_connected else "disconnected"
 
         status_val = agent.status.value
         if getattr(agent, "_maintenance_mode", False):
@@ -162,7 +172,16 @@ def create_worker_console_app(agent: Any) -> FastAPI:
 
     @app.get("/api/worker/network")
     async def get_network() -> Dict[str, Any]:
-        ws_status = "connected" if agent._ws and not agent._ws.closed else "disconnected"
+        is_connected = False
+        if agent._ws is not None:
+            state = getattr(agent._ws, "state", None)
+            if state is not None:
+                is_connected = str(state).upper() in ["1", "OPEN", "STATE.OPEN"]
+            elif hasattr(agent._ws, "closed"):
+                is_connected = not agent._ws.closed
+            else:
+                is_connected = True
+        ws_status = "connected" if is_connected else "disconnected"
         return {
             "node_id": agent.node_id,
             "orchestrator_url": agent.config.orchestrator_url,

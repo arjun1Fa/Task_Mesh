@@ -138,3 +138,4 @@ export function useDashboardSocket(options?: UseDashboardSocketOptions): UseDash
 
   return { status, lastEvent, events, subscribe }
 }
+

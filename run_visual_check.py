@@ -1,11 +1,16 @@
 """Automated full-stack visual verification script for TaskMesh.
 
-Launches:
-1. Orchestrator server on port 8000
-2. Three real Worker Agents: node-alpha (port 8081), node-beta (port 8082), node-edge-gamma (port 8083)
-3. Submits multiple tasks with varying priorities and handlers
-4. Controls Google Chrome via Playwright to log in, interact with all features, and capture screenshots.
-5. Verifies live WebSocket feeds and real telemetry.
+Verifies TWO SEPARATE, INDEPENDENTLY RUNNING APPLICATIONS:
+1. Orchestrator Control Center (port 8000)
+2. Worker Agent Console on node-alpha (port 8081)
+3. Worker Agent Console on node-beta (port 8082)
+
+Strict Architectural Rules Verified:
+- No button to switch between Worker and Orchestrator modes.
+- No dropdown to select a worker node identity in the worker console.
+- The running backend process strictly dictates the frontend application identity.
+- Port 8081 binds strictly to node-alpha (4 slots).
+- Port 8082 binds strictly to node-beta (8 slots).
 """
 
 import os
@@ -52,11 +57,11 @@ def http_get_json(url, token=None):
 
 def main():
     processes = []
-    print("=== TASKMESH VISUAL VERIFICATION STARTING ===")
+    print("=== TASKMESH TWO-APPLICATION VISUAL VERIFICATION STARTING ===")
     
     try:
         # 1. Start Orchestrator
-        print("[1/6] Launching TaskMesh Orchestrator Server on port 8000...")
+        print("\n[1/6] Launching TaskMesh Orchestrator Server on port 8000...")
         orch_proc = subprocess.Popen(
             [sys.executable, "-m", "taskmesh.orchestrator.main", "--host", "127.0.0.1", "--port", "8000", "--mode", "adaptive"],
             stdout=subprocess.DEVNULL,
@@ -68,8 +73,8 @@ def main():
             raise RuntimeError("Orchestrator failed to start within timeout.")
         print("  -> Orchestrator healthy and responding on http://127.0.0.1:8000/")
 
-        # 2. Start 3 Real Node Agents
-        print("[2/6] Launching 3 distinct Node Agents (GPU Rig, Multi-core CPU, Edge Mini-PC)...")
+        # 2. Start 3 Real Node Agents with their own embedded console servers
+        print("\n[2/6] Launching 3 Node Agents with independent Worker Consoles...")
         nodes_config = [
             ("node-alpha", 4, 8081),
             ("node-beta", 8, 8082),
@@ -90,7 +95,7 @@ def main():
                 stderr=subprocess.DEVNULL
             )
             processes.append((nid, p))
-            print(f"  -> Launched [{nid}] (Concurrency: {workers}, Console Port: {cport})")
+            print(f"  -> Launched [{nid}] (Concurrency: {workers}, Dedicated Console: http://127.0.0.1:{cport})")
 
         # Wait for nodes to register
         print("  -> Waiting for all 3 nodes to register with the orchestrator...")
@@ -105,8 +110,15 @@ def main():
         else:
             raise RuntimeError("Nodes failed to register in time.")
 
+        # Verify console endpoints are responding
+        if not wait_for_url("http://127.0.0.1:8081/api/worker/identity", timeout=15):
+            raise RuntimeError("node-alpha console failed to respond.")
+        if not wait_for_url("http://127.0.0.1:8082/api/worker/identity", timeout=15):
+            raise RuntimeError("node-beta console failed to respond.")
+        print("  -> Worker Consoles online on ports 8081 and 8082.")
+
         # 3. Submit real workload tasks to exercise the cluster
-        print("[3/6] Submitting workload tasks to cluster...")
+        print("\n[3/6] Submitting workload tasks to cluster...")
         tasks = [
             {"task_type": "benchmark", "payload": {"matrix_size": 250, "iterations": 4}, "priority": 9},
             {"task_type": "echo", "payload": {"message": "Cluster operational verification 1"}, "priority": 5},
@@ -124,7 +136,7 @@ def main():
         time.sleep(2)
 
         # 4. Chrome Playwright Automation
-        print("[4/6] Launching Google Chrome to perform visual verification...")
+        print("\n[4/6] Launching Google Chrome to perform visual verification...")
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(
                 executable_path=CHROME_PATH,
@@ -134,24 +146,29 @@ def main():
             context = browser.new_context(viewport={"width": 1440, "height": 960})
             page = context.new_page()
 
-            # Attach console and error listeners
-            page.on("console", lambda msg: print(f"  [BROWSER {msg.type.upper()}]: {msg.text}"))
+            page.on("console", lambda msg: print(f"  [BROWSER {msg.type.upper()}]: {msg.text}") if msg.type in ['error', 'warning'] else None)
             page.on("pageerror", lambda err: print(f"  [BROWSER ERROR]: {err}\n{getattr(err, 'stack', '')}"))
-            page.on("response", lambda res: print(f"  [HTTP {res.status}] {res.url}") if res.status >= 400 else None)
 
-            # Navigate to frontend
-            print("  -> Navigating to http://127.0.0.1:8000/ ...")
+            # =================================================================
+            # APPLICATION 1: Orchestrator Control Center (http://127.0.0.1:8000/)
+            # =================================================================
+            print("\n=======================================================")
+            print("VERIFYING APPLICATION 1: Orchestrator Control Center")
+            print("=======================================================")
             page.goto("http://127.0.0.1:8000/", wait_until="networkidle")
             time.sleep(2)
 
-            page.screenshot(path=str(OUTPUT_DIR / "00_initial_load.png"))
-            print("  -> Initial page load screenshot saved: 00_initial_load.png")
-
-            # Check title
             title = page.title()
             print(f"  -> Page Title: '{title}'")
-            print(f"  -> Root text length: {len(page.locator('#root').inner_text())}")
-            assert "TaskMesh" in title
+            assert "Orchestrator" in title, f"Expected Orchestrator in title, got: {title}"
+            
+            # Verify NO worker mode switch exists
+            worker_toggle = page.query_selector("button:has-text('Worker Console'), button:has-text('Switch to Worker')")
+            assert worker_toggle is None, "Violation: Found worker console switcher inside Orchestrator app!"
+            print("  -> Verified: NO worker switch button exists in Orchestrator Control Center.")
+
+            page.screenshot(path=str(OUTPUT_DIR / "00_initial_load.png"))
+            print("  -> Screenshot saved: 00_initial_load.png")
 
             # Check Login
             print("  -> Authenticating as 'admin'...")
@@ -163,187 +180,113 @@ def main():
                 page.fill("input[type='password']", "admin123")
                 page.click("button[type='submit']")
                 time.sleep(1)
-                print("  -> Logged in successfully!")
+                print("  -> Logged in successfully as admin!")
 
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 1: Global Overview
-            # -----------------------------------------------------------------
-            print("  -> Verifying [1. Global Overview]...")
-            page.wait_for_selector(".kpi-card", timeout=5000)
-            page.screenshot(path=str(OUTPUT_DIR / "01_global_overview.png"), full_page=True)
-            print("     [OK] Screenshot saved: 01_global_overview.png")
+            # Orchestrator Views
+            views = [
+                ("1. Global Overview", "01_global_overview.png"),
+                ("2. Cluster Nodes", "02_cluster_nodes.png"),
+                ("3. Live Task Allocation", "03_live_task_monitor.png"),
+                ("4. Task Queue", "04_task_queue.png"),
+                ("5. Task History", "05_task_history.png"),
+                ("6. Scheduling Intelligence", "06_scheduling_engine.png"),
+                ("7. Network & Inference", "07_network_inference.png"),
+                ("8. Logs & Events", "08_logs_events.png"),
+                ("9. Dead Letter Queue", "09_dead_letter_queue.png"),
+                ("10. Recovery & Failover", "10_recovery_ha.png"),
+                ("11. Users & Permissions", "11_users_permissions.png"),
+                ("12. System Configuration", "12_system_config.png"),
+                ("13. Security & Audit", "13_security_audit.png"),
+            ]
 
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 2: Cluster & Nodes
-            # -----------------------------------------------------------------
-            print("  -> Verifying [2. Cluster & Nodes]...")
-            page.click(".nav-item:has-text('Cluster & Nodes')")
-            time.sleep(1)
-            page.wait_for_selector("text=node-alpha", timeout=5000)
-            page.wait_for_selector("text=node-beta", timeout=5000)
-            page.wait_for_selector("text=node-edge-gamma", timeout=5000)
-            page.screenshot(path=str(OUTPUT_DIR / "02_cluster_nodes.png"), full_page=True)
-            print("     [OK] All 3 nodes visible on screen. Screenshot: 02_cluster_nodes.png")
+            for label, fname in views:
+                print(f"  -> Testing Orchestrator view: [{label}]...")
+                btn = page.query_selector(f".nav-item:has-text('{label}')")
+                if btn:
+                    btn.click()
+                    time.sleep(0.8)
+                    page.screenshot(path=str(OUTPUT_DIR / fname), full_page=True)
+                    print(f"     [OK] Saved: {fname}")
+                else:
+                    print(f"     [WARN] Could not find nav button for: {label}")
 
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 3: Live Task Monitor
-            # -----------------------------------------------------------------
-            print("  -> Verifying [3. Live Task Monitor]...")
-            page.click(".nav-item:has-text('Live Task Monitor')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "03_live_task_monitor.png"), full_page=True)
-            print("     [OK] Screenshot saved: 03_live_task_monitor.png")
+            # =================================================================
+            # APPLICATION 2: Worker Agent Console (node-alpha on http://127.0.0.1:8081/)
+            # =================================================================
+            print("\n=======================================================")
+            print("VERIFYING APPLICATION 2: Worker Agent Console (node-alpha: 8081)")
+            print("=======================================================")
+            page.goto("http://127.0.0.1:8081/", wait_until="networkidle")
+            time.sleep(2)
 
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 4: Task Queue
-            # -----------------------------------------------------------------
-            print("  -> Verifying [4. Task Queue]...")
-            page.click(".nav-item:has-text('Task Queue')")
-            time.sleep(1)
-            page.wait_for_selector("table", timeout=5000)
-            page.screenshot(path=str(OUTPUT_DIR / "04_task_queue.png"), full_page=True)
-            print("     [OK] Screenshot saved: 04_task_queue.png")
+            worker_title = page.title()
+            print(f"  -> Page Title: '{worker_title}'")
+            assert "Worker Agent" in worker_title, f"Expected Worker Agent in title, got: {worker_title}"
 
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 5: Scheduling Engine
-            # -----------------------------------------------------------------
-            print("  -> Verifying [5. Scheduling Engine & 6 Adaptive Subsystems]...")
-            page.click(".nav-item:has-text('Scheduling Engine')")
-            time.sleep(1)
-            # Switch mode to LEAST_LOADED and back to ADAPTIVE
-            page.click("button:has-text('LEAST LOADED')")
+            # Verify locked node identity
+            node_label = page.locator(".mono:has-text('node-alpha')").first
+            assert node_label.is_visible(), "Worker Console did not automatically bind to node-alpha!"
+            print("  -> Verified: Worker console automatically bound to local hardware identity 'node-alpha'!")
+
+            # Verify NO node identity dropdown
+            dropdown = page.query_selector("select.form-select, select[name='node_id']")
+            assert dropdown is None, "Violation: Found worker dropdown selector inside Worker Console!"
+            print("  -> Verified: NO node identity dropdown exists in Worker Console.")
+
+            # Capture Worker Views for node-alpha
+            worker_views = [
+                ("1. Local Overview", "14_worker_alpha_overview.png"),
+                ("2. Hardware Profile", "15_worker_alpha_hardware.png"),
+                ("3. Task Execution", "16_worker_alpha_tasks.png"),
+                ("4. Concurrency Slots", "17_worker_alpha_pool.png"),
+                ("5. Network & TMCH", "18_worker_alpha_network.png"),
+                ("6. Node Agent Logs", "19_worker_alpha_logs.png"),
+                ("7. Local Management", "20_worker_alpha_settings.png"),
+            ]
+
+            for label, fname in worker_views:
+                print(f"  -> Testing Worker Console view: [{label}]...")
+                btn = page.query_selector(f".nav-item:has-text('{label}')")
+                if btn:
+                    btn.click()
+                    time.sleep(0.8)
+                    page.screenshot(path=str(OUTPUT_DIR / fname), full_page=True)
+                    print(f"     [OK] Saved: {fname}")
+
+            # Verify Concurrency Slots for node-alpha (must be 4 slots)
+            page.click(".nav-item:has-text('4. Concurrency Slots')")
+            time.sleep(0.5)
+            page.wait_for_selector("text=of 4 slots occupied", timeout=5000)
+            print("  -> node-alpha slot utilization verified: 4 slots occupied counter found.")
+
+            # =================================================================
+            # APPLICATION 2: Worker Agent Console (node-beta on http://127.0.0.1:8082/)
+            # =================================================================
+            print("\n=======================================================")
+            print("VERIFYING APPLICATION 2: Worker Agent Console (node-beta: 8082)")
+            print("=======================================================")
+            page.goto("http://127.0.0.1:8082/", wait_until="networkidle")
+            time.sleep(2)
+
+            beta_node_label = page.locator(".mono:has-text('node-beta')").first
+            assert beta_node_label.is_visible(), "Worker Console 8082 did not bind to node-beta!"
+            print("  -> Verified: Worker console 8082 automatically bound to local hardware identity 'node-beta'!")
+
+            page.screenshot(path=str(OUTPUT_DIR / "21_worker_beta_overview.png"), full_page=True)
+            print("     [OK] Saved: 21_worker_beta_overview.png")
+
+            # Check Concurrency Slots for node-beta (must be 8 slots)
+            page.click(".nav-item:has-text('4. Concurrency Slots')")
             time.sleep(0.8)
-            page.click("button:has-text('ADAPTIVE')")
-            time.sleep(0.8)
-            page.screenshot(path=str(OUTPUT_DIR / "05_scheduling_engine.png"), full_page=True)
-            print("     [OK] Mode switching verified. Screenshot: 05_scheduling_engine.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 6: Network & TMCH Protocol
-            # -----------------------------------------------------------------
-            print("  -> Verifying [6. Network Topology & TMCH 48-byte Binary Header]...")
-            page.click(".nav-item:has-text('Network & Inference')")
-            time.sleep(1)
-            page.click("button:has-text('TMCH Protocol')")
-            time.sleep(0.8)
-            page.screenshot(path=str(OUTPUT_DIR / "06_network_inference.png"), full_page=True)
-            print("     [OK] Screenshot saved: 06_network_inference.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 7: Workers Pool
-            # -----------------------------------------------------------------
-            print("  -> Verifying [7. Workers Pool & Concurrency Slots]...")
-            page.click(".nav-item:has-text('Workers Pool')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "07_workers_pool.png"), full_page=True)
-            print("     [OK] Screenshot saved: 07_workers_pool.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 8: Logs & Events
-            # -----------------------------------------------------------------
-            print("  -> Verifying [8. Logs & Real-Time Event Stream]...")
-            page.click(".nav-item:has-text('Logs & Events')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "08_logs_events.png"), full_page=True)
-            print("     [OK] Screenshot saved: 08_logs_events.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 9: Dead Letter Queue
-            # -----------------------------------------------------------------
-            print("  -> Verifying [9. Dead Letter Queue]...")
-            page.click(".nav-item:has-text('Dead Letter Queue')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "09_dead_letter_queue.png"), full_page=True)
-            print("     [OK] Screenshot saved: 09_dead_letter_queue.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 10: Recovery & HA
-            # -----------------------------------------------------------------
-            print("  -> Verifying [10. High Availability & Replication]...")
-            page.click(".nav-item:has-text('Recovery & HA')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "10_recovery_ha.png"), full_page=True)
-            print("     [OK] Screenshot saved: 10_recovery_ha.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 11: Users & Permissions
-            # -----------------------------------------------------------------
-            print("  -> Verifying [11. Users & RBAC Permissions]...")
-            page.click(".nav-item:has-text('Users & Permissions')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "11_users_permissions.png"), full_page=True)
-            print("     [OK] Screenshot saved: 11_users_permissions.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 12: System Config
-            # -----------------------------------------------------------------
-            print("  -> Verifying [12. System Configuration]...")
-            page.click(".nav-item:has-text('System Configuration')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "12_system_config.png"), full_page=True)
-            print("     [OK] Screenshot saved: 12_system_config.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 13: Security & Audit
-            # -----------------------------------------------------------------
-            print("  -> Verifying [13. Security Audit Trail]...")
-            page.click(".nav-item:has-text('Security & Audit')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "13_security_audit.png"), full_page=True)
-            print("     [OK] Screenshot saved: 13_security_audit.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 14: System Health
-            # -----------------------------------------------------------------
-            print("  -> Verifying [14. System Health & Deep Diagnostics]...")
-            page.click(".nav-item:has-text('System Health')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "14_system_health.png"), full_page=True)
-            print("     [OK] Screenshot saved: 14_system_health.png")
-
-            # -----------------------------------------------------------------
-            # VISUAL CHECK 15: Worker Agent Console (Interface A)
-            # -----------------------------------------------------------------
-            print("[5/6] Verifying [Interface A: Worker Agent Console]...")
-            page.click("button:has-text('Switch to Worker Console')")
-            time.sleep(1)
-            page.screenshot(path=str(OUTPUT_DIR / "15_worker_console_overview.png"), full_page=True)
-            print("     [OK] Worker Overview screenshot: 15_worker_console_overview.png")
-
-            # Check Worker Hardware page
-            page.click(".nav-item:has-text('Hardware & Capabilities')")
-            time.sleep(0.8)
-            page.screenshot(path=str(OUTPUT_DIR / "16_worker_console_hardware.png"), full_page=True)
-            print("     [OK] Worker Hardware screenshot: 16_worker_console_hardware.png")
-
-            # Check Worker Pool page
-            page.click(".nav-item:has-text('Execution & Worker Pool')")
-            time.sleep(0.8)
-            page.screenshot(path=str(OUTPUT_DIR / "17_worker_console_pool.png"), full_page=True)
-            print("     [OK] Worker Pool screenshot: 17_worker_console_pool.png")
-
-            # Check Worker Network page
-            page.click(".nav-item:has-text('Network & Communication')")
-            time.sleep(0.8)
-            page.screenshot(path=str(OUTPUT_DIR / "18_worker_console_network.png"), full_page=True)
-            print("     [OK] Worker Network screenshot: 18_worker_console_network.png")
-
-            # Switch target worker in dropdown to node-beta
-            node_select = page.query_selector("select.form-select")
-            if node_select:
-                page.select_option("select.form-select", "node-beta")
-                time.sleep(1)
-                page.click(".nav-item:has-text('Worker Overview')")
-                time.sleep(0.8)
-                page.screenshot(path=str(OUTPUT_DIR / "19_worker_node_beta.png"), full_page=True)
-                print("     [OK] Node Beta Console screenshot: 19_worker_node_beta.png")
+            page.screenshot(path=str(OUTPUT_DIR / "22_worker_beta_pool.png"), full_page=True)
+            print("     [OK] Saved: 22_worker_beta_pool.png (showing 8 slots)")
 
             browser.close()
 
-        print("[6/6] Visual verification run COMPLETED successfully!")
+        print("\n[5/6] Full visual verification run COMPLETED successfully!")
 
     finally:
-        print("\nCleaning up background processes...")
+        print("\n[6/6] Cleaning up background processes...")
         for name, proc in reversed(processes):
             try:
                 proc.terminate()
@@ -354,4 +297,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

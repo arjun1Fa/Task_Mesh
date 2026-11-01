@@ -238,3 +238,4 @@ export interface WorkerOverview {
   effective_score?: number
   paused_assignments?: boolean
 }
+
