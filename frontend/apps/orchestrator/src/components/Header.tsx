@@ -66,18 +66,71 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Live WebSocket Status Pill */}
         <div
-          className={`badge ${wsStatus === 'connected' ? 'badge-connected' : 'badge-danger'}`}
-          title={`WebSocket feed: ${wsStatus}`}
+          className={`badge ${
+            !isAuthenticated
+              ? 'badge-amber'
+              : wsStatus === 'connected'
+              ? 'badge-connected'
+              : 'badge-danger'
+          }`}
+          title={
+            !isAuthenticated
+              ? 'Authentication required to establish live WebSocket event feed. Click to sign in.'
+              : `WebSocket feed: ${wsStatus}`
+          }
+          onClick={!isAuthenticated ? onOpenLogin : undefined}
+          style={!isAuthenticated ? { cursor: 'pointer' } : undefined}
         >
-          <span className={`status-dot ${wsStatus === 'connected' ? 'dot-connected' : 'dot-disconnected'}`} />
+          <span
+            className={`status-dot ${
+              !isAuthenticated
+                ? 'dot-degraded'
+                : wsStatus === 'connected'
+                ? 'dot-connected'
+                : 'dot-disconnected'
+            }`}
+          />
           <Radio size={11} />
-          <span>WS: {wsStatus}</span>
+          <span>
+            WS:{' '}
+            {!isAuthenticated
+              ? 'AUTH REQUIRED'
+              : wsStatus.toUpperCase()}
+          </span>
         </div>
 
         {/* Cluster Status Pill */}
-        <div className={`badge ${isHealthy ? 'badge-healthy' : 'badge-warning'}`}>
-          <span className={`status-dot ${isHealthy ? 'dot-online' : 'dot-degraded'}`} />
-          <span>Cluster: {clusterStatus.toUpperCase()}</span>
+        <div
+          className={`badge ${
+            !isAuthenticated
+              ? 'badge-amber'
+              : isHealthy
+              ? 'badge-healthy'
+              : 'badge-warning'
+          }`}
+          title={
+            !isAuthenticated
+              ? 'Authentication required to inspect cluster health. Click to sign in.'
+              : `Cluster health: ${clusterStatus}`
+          }
+          onClick={!isAuthenticated ? onOpenLogin : undefined}
+          style={!isAuthenticated ? { cursor: 'pointer' } : undefined}
+        >
+          <span
+            className={`status-dot ${
+              !isAuthenticated
+                ? 'dot-degraded'
+                : isHealthy
+                ? 'dot-online'
+                : 'dot-degraded'
+            }`}
+          />
+          <span>
+            CLUSTER:{' '}
+            {!isAuthenticated
+              ? 'AUTH REQUIRED'
+              : clusterStatus.toUpperCase()}
+          </span>
         </div>
 
         {/* User Account State */}

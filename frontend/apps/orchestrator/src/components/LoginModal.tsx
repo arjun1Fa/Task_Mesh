@@ -114,12 +114,60 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 border: '1px solid var(--border-main)',
               }}
             >
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                Quick Cluster Sign In:
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.45rem' }}>
+                One-Click Role Authentication:
               </div>
-              • Default admin credentials: <code style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>admin</code> / <code style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>admin123</code>
-              <br />
-              • Or authenticate using cluster token or <code>TASKMESH_ADMIN_PASSWORD</code>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
+                  onClick={async () => {
+                    setUsername('admin')
+                    setPassword('admin123')
+                    setIsSubmitting(true)
+                    setError(null)
+                    try {
+                      await login('admin', 'admin123')
+                      onClose()
+                    } catch (err: any) {
+                      setError(err.message || 'Login failed')
+                    } finally {
+                      setIsSubmitting(false)
+                    }
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <Shield size={12} color="var(--accent-blue)" />
+                  <span>Sign In as Admin</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
+                  onClick={async () => {
+                    setUsername('operator')
+                    setPassword('operator123')
+                    setIsSubmitting(true)
+                    setError(null)
+                    try {
+                      await login('operator', 'operator123')
+                      onClose()
+                    } catch (err: any) {
+                      setError(err.message || 'Login failed')
+                    } finally {
+                      setIsSubmitting(false)
+                    }
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <Shield size={12} color="var(--accent-purple)" />
+                  <span>Sign In as Operator</span>
+                </button>
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                Or manually enter custom credentials or cluster service tokens configured in your deployment.
+              </div>
             </div>
           </div>
 

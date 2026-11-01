@@ -16,12 +16,14 @@ import { SystemConfig } from './components/SystemConfig'
 import { SecurityAudit } from './components/SecurityAudit'
 import { SubmitTaskModal } from './components/SubmitTaskModal'
 import { LoginModal } from './components/LoginModal'
-import { api } from './api/client'
+import { api, getAuthToken } from './api/client'
+import { useAuth } from './auth/AuthContext'
 import { useDashboardSocket } from './websocket/useDashboardSocket'
 import type { ClusterHealth, NodeProfile, SchedulerDecision, Task } from '@shared/types'
 import '@shared/styles/theme.css'
 
 export const App: React.FC = () => {
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const [currentPage, setCurrentPage] = useState<OrchestratorPage>('overview')
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
@@ -40,6 +42,17 @@ export const App: React.FC = () => {
   // Fetch initial cluster state
   const refreshClusterData = useCallback(async () => {
     try {
+      const token = getAuthToken()
+      if (!token) {
+        setHealth(null)
+        setNodes([])
+        setTasks([])
+        setDecisions([])
+        setDlqCount(0)
+        setIsLoading(false)
+        return
+      }
+
       const [h, n, t, dec, dlq] = await Promise.all([
         api.getHealth().catch(() => null),
         api.listNodes().catch(() => []),
@@ -66,8 +79,15 @@ export const App: React.FC = () => {
     return () => clearInterval(timer)
   }, [refreshClusterData])
 
+  // Refetch immediately whenever authentication state changes
+  useEffect(() => {
+    refreshClusterData()
+  }, [isAuthenticated, refreshClusterData])
+
   // Real-time WebSocket connection
   const { status: wsStatus } = useDashboardSocket({
+    token: getAuthToken(),
+    isAuthenticated,
     onEvent: (evt) => {
       if (!evt || !evt.event_type) return
 
@@ -299,6 +319,7 @@ export const App: React.FC = () => {
               onOpenSubmitModal={() => setIsSubmitModalOpen(true)}
               onNavigateToNodes={() => setCurrentPage('nodes')}
               onNavigateToTasks={() => setCurrentPage('queue')}
+              onOpenLogin={() => setIsLoginModalOpen(true)}
             />
           )}
 

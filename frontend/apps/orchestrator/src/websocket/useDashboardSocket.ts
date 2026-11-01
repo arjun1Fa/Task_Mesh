@@ -12,7 +12,10 @@ interface UseDashboardSocketReturn {
 }
 
 export interface UseDashboardSocketOptions {
+  token?: string | null
+  isAuthenticated?: boolean
   onEvent?: (event: DashboardEvent) => void
+  onMessage?: (event: DashboardEvent) => void
   onHealth?: (health: any) => void
 }
 
@@ -35,10 +38,32 @@ export function useDashboardSocket(options?: UseDashboardSocketOptions): UseDash
   const connect = useCallback(() => {
     if (!isMountedRef.current) return
 
+    // Require token or authentication before attempting WebSocket connection
+    const currentToken = optionsRef.current?.token ?? getAuthToken()
+    const isAuthed = optionsRef.current?.isAuthenticated ?? !!currentToken
+
+    if (!isAuthed || !currentToken) {
+      if (socketRef.current) {
+        socketRef.current.close()
+        socketRef.current = null
+      }
+      setStatus('disconnected')
+      return
+    }
+
+    // Clean up any existing connection
+    if (socketRef.current) {
+      try {
+        socketRef.current.close()
+      } catch {
+        // ignore
+      }
+      socketRef.current = null
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    const token = getAuthToken()
-    const query = token ? `?token=${encodeURIComponent(token)}` : ''
+    const query = `?token=${encodeURIComponent(currentToken)}`
     const wsUrl = `${protocol}//${host}/v1/ws/dashboard${query}`
 
     setStatus(reconnectAttemptRef.current > 0 ? 'reconnecting' : 'connecting')
@@ -61,11 +86,16 @@ export function useDashboardSocket(options?: UseDashboardSocketOptions): UseDash
           setLastEvent(payload)
           setEvents((prev) => [payload, ...prev.slice(0, 99)])
 
-          // Fire options callback if present
-          if (optionsRef.current?.onEvent) {
-            optionsRef.current.onEvent(payload)
+          // Support both onEvent and onMessage callback contracts
+          const callback = optionsRef.current?.onEvent || optionsRef.current?.onMessage
+          if (callback) {
+            callback(payload)
           }
-          if (payload.event_type === 'health_update' && optionsRef.current?.onHealth) {
+
+          if (
+            (payload.event_type === 'health_update' || payload.event_type === 'initial_sync') &&
+            optionsRef.current?.onHealth
+          ) {
             optionsRef.current.onHealth(payload.data)
           }
 
@@ -90,25 +120,37 @@ export function useDashboardSocket(options?: UseDashboardSocketOptions): UseDash
         }
       }
 
-      ws.onclose = () => {
+      ws.onclose = (evt) => {
         if (!isMountedRef.current) return
         setStatus('disconnected')
         socketRef.current = null
 
-        // Exponential backoff reconnect
-        const timeout = Math.min(1000 * Math.pow(1.5, reconnectAttemptRef.current), 10000)
-        reconnectAttemptRef.current += 1
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect()
-        }, timeout)
+        // If closed due to unauthorized policy violation (1008), do not retry indefinitely without auth
+        if (evt.code === 1008) {
+          return
+        }
+
+        // Exponential backoff reconnect if authenticated
+        const hasToken = optionsRef.current?.token ?? getAuthToken()
+        if (hasToken) {
+          const timeout = Math.min(1000 * Math.pow(1.5, reconnectAttemptRef.current), 10000)
+          reconnectAttemptRef.current += 1
+          if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect()
+          }, timeout)
+        }
       }
     } catch {
       setStatus('disconnected')
     }
   }, [])
 
+  // Re-connect whenever authentication state or token changes
   useEffect(() => {
     isMountedRef.current = true
+    reconnectAttemptRef.current = 0
+    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
     connect()
 
     // Keep alive ping
@@ -126,7 +168,7 @@ export function useDashboardSocket(options?: UseDashboardSocketOptions): UseDash
         socketRef.current.close()
       }
     }
-  }, [connect])
+  }, [connect, options?.token, options?.isAuthenticated])
 
   const subscribe = useCallback((eventType: string, handler: (event: DashboardEvent) => void) => {
     if (!handlersRef.current.has(eventType)) {
