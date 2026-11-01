@@ -40,7 +40,8 @@ async def test_node_process_kill_and_recovery():
         processes.append(("Orchestrator", p_orch))
 
         # Wait for orchestrator
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        auth_headers = {"Authorization": "Bearer default-mesh-secret"}
+        async with httpx.AsyncClient(timeout=2.0, headers=auth_headers) as client:
             ready = False
             for _ in range(30):
                 try:
@@ -63,7 +64,7 @@ async def test_node_process_kill_and_recovery():
         processes.append(("node-doomed", p_doomed))
 
         # Wait for doomed node to register
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, headers=auth_headers) as client:
             for _ in range(30):
                 resp = await client.get(f"http://127.0.0.1:{port}/v1/nodes/node-doomed")
                 if resp.status_code == 200:
@@ -71,7 +72,7 @@ async def test_node_process_kill_and_recovery():
                 await asyncio.sleep(0.2)
 
         # 3. Submit long sleep task (sleep 4s)
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=5.0, headers=auth_headers) as client:
             submit_resp = await client.post(
                 f"http://127.0.0.1:{port}/v1/tasks",
                 json={
