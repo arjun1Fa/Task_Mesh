@@ -129,6 +129,10 @@ taskmesh-server --host 0.0.0.0 --port 8000 --mode adaptive
 taskmesh-server --host 0.0.0.0 --port 8000 --mode adaptive --secure --secret your-cluster-shared-secret
 ```
 
+Once started, the **TaskMesh Control Center** is served natively at `http://127.0.0.1:8000/`.
+- Default Super Admin credentials: `admin` / `admin123`
+- Pre-built with complete cluster telemetry, live task queue, scheduling explainer, and DLQ management.
+
 *Firewall Notes:*
 - **Windows**: Allow inbound TCP port 8000 via Windows Defender Firewall:
   ```powershell
@@ -140,14 +144,62 @@ taskmesh-server --host 0.0.0.0 --port 8000 --mode adaptive --secure --secret you
   ```
 
 ### Node Agent Setup (Machines 2, 3, etc. - Workers)
-Worker nodes connect directly to the Orchestrator's LAN IP address:
+Worker nodes connect directly to the Orchestrator's LAN IP address and can run an optional embedded **Worker Agent Console**:
 
 ```bash
-# Machine 2 (CPU Server or standard laptop)
-taskmesh-node --node-id node-laptop --url ws://192.168.1.100:8000/v1/ws/nodes --workers 4
+# Machine 2 (CPU Server or standard laptop with local console on port 8081)
+taskmesh-node --node-id node-laptop --url ws://192.168.1.100:8000/v1/ws/nodes --workers 4 --console-port 8081
 
-# Machine 3 (GPU Workstation - Secure mode)
-taskmesh-node --node-id node-gpu-rig --url ws://192.168.1.100:8000/v1/ws/nodes --workers 8 --secure --secret your-cluster-shared-secret
+# Machine 3 (GPU Workstation - Secure mode with console on port 8082)
+taskmesh-node --node-id node-gpu-rig --url ws://192.168.1.100:8000/v1/ws/nodes --workers 8 --console-port 8082 --secure --secret your-cluster-shared-secret
+```
+
+Access the local Worker Agent Console directly at `http://<worker-ip>:<console-port>/` or via the top-bar switch button in the central control center.
+
+---
+
+## Web Frontend & Control Platform Architecture
+
+The TaskMesh control experience provides two interconnected interfaces engineered with React 19, TypeScript, and Vite:
+
+### 1. Interface B: Orchestrator Control Center
+- **Global Overview**: Real-time cluster status, KPI metrics, node status breakdown, throughput graphs, and dispatch controls.
+- **Cluster & Nodes**: Node cards/tables, hardware telemetry, allocation bars, and instant drain/resume/maintenance controls.
+- **Live Task Monitor**: Live task assignment matrix, candidate score comparisons, and stage-by-stage explainability.
+- **Task Queue**: Priority ordering, status filters, payload inspection, cancellation, and re-queue actions.
+- **Scheduling Engine**: Real-time mode switching (Adaptive, Round-Robin, Least-Loaded, Highest-Bid), 6 adaptive component toggles (EWMA, DRR Fairness, Contract Net Bidding, MWU Multi-Armed Bandit, Q-Learning, Wireless Inference), and interactive latency cost simulator.
+- **Network & Inference**: Node RTT and upload/download EWMA, TMCH 48-byte binary framing protocol visualizer, and AI inference model registries.
+- **Workers Pool**: Cluster-wide worker capacity, active threads vs available slots, and supported handlers capability matrix.
+- **Logs & Events**: Real-time log streaming via WebSocket, level/source filters, auto-scroll, and JSON export.
+- **Dead Letter Queue (DLQ)**: Poisoned task isolation, error traceback viewer, and one-click task recovery.
+- **Recovery & HA**: Primary/Standby replication status, snapshot sync interval, and manual failover promotion.
+- **Users & Permissions**: RBAC account management, PBKDF2 password authentication, user creation/editing, and permissions matrix.
+- **System Configuration**: Live updating of heartbeat timeouts, dead node timers, dispatch intervals, and lease periods.
+- **Security Audit**: Immutable audit trail of administrative events, role actions, and execution outcomes.
+- **System Health**: Deep subsystem diagnostic probes (Persistence, Priority Queue, Payload Store, Standby).
+
+### 2. Interface A: Worker Agent Console
+- **Worker Overview**: Dedicated node telemetry, CPU/RAM/GPU load, active vs queued tasks, and RTT to orchestrator.
+- **Hardware & Capabilities**: Registered hardware profile, supported handlers, capability tags, vs scheduler-derived scores.
+- **Task Execution**: Active executing tasks, recently completed executions, and latency metrics.
+- **Execution & Worker Pool**: Concurrency semaphore slots visualizer and thread status.
+- **Network & Communication**: WebSocket link health, heartbeat interval tracking, and TMCH binary receiver status.
+- **Worker Logs**: Real-time node agent logs with level filtering and search.
+- **Worker Settings & Ops**: Local drain, resume, maintenance servicing, and concurrency tuning.
+
+### Development & Build
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Run Vite dev server with proxy to backend
+npm run dev
+
+# Build production assets directly into taskmesh/orchestrator/static
+npm run build
 ```
 
 ---
