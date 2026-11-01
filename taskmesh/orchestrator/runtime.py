@@ -43,6 +43,10 @@ from taskmesh.scheduler.baseline import (
     RoundRobinScheduler,
 )
 from taskmesh.scheduler.decision import SchedulerDecision
+from taskmesh.bidding.contract_net import calculate_node_bid
+from taskmesh.orchestrator.events import DashboardEventHub
+from taskmesh.security.auth import AuthManager
+from taskmesh.security.audit import AuditLogger
 from taskmesh.security.hmac_auth import SecurityManager
 from taskmesh.transport.binary_protocol import (
     create_binary_chunk_frame,
@@ -98,6 +102,13 @@ class OrchestratorRuntime:
         self._decisions: List[SchedulerDecision] = []
         self._delayed_tasks: List[Task] = []
         self._running_attempts: Dict[str, str] = {}  # task_id -> attempt_id
+
+        # Master Controls, Events, Auth & Audit
+        db_file = self.config.db_url.replace("sqlite:///", "") if self.config.db_url.startswith("sqlite:///") else "taskmesh.db"
+        self.events = DashboardEventHub()
+        self.audit = AuditLogger(db_path=db_file)
+        self.auth = AuthManager(db_path=db_file)
+        self._dispatch_paused: bool = False
 
         # Lifecycle control
         self.is_running = False
@@ -319,6 +330,17 @@ class OrchestratorRuntime:
 
         await self.repo.save(task)
         logger.info(f"Accepted task [{task.id}] type={task.task_type} priority={task.priority} offload_policy={task.offload_policy.value}")
+        await self.events.broadcast(
+            event_type="task.submitted",
+            data={
+                "task_id": task.id,
+                "task_type": task.task_type,
+                "priority": task.priority,
+                "offload_policy": task.offload_policy.value,
+                "has_binary_payload": task.binary_meta is not None,
+            },
+            entity_id=task.id,
+        )
         return task
 
 
@@ -349,6 +371,11 @@ class OrchestratorRuntime:
                     logger.warning(f"Failed to transmit cancellation to node {task.assigned_node_id}: {e}")
 
         logger.info(f"Task [{task_id}] cancelled: {reason}")
+        await self.events.broadcast(
+            event_type="task.cancelled",
+            data={"task_id": task_id, "reason": reason},
+            entity_id=task_id,
+        )
         return task
 
     async def retry_task(self, task_id: str) -> Task:
@@ -363,10 +390,16 @@ class OrchestratorRuntime:
         task.error_message = None
         await self.repo.save(task)
         await self.queue.enqueue(task)
+        await self.events.broadcast(
+            event_type="task.retried",
+            data={"task_id": task_id},
+            entity_id=task_id,
+        )
         return task
 
-    async def drain_node(self, node_id: str) -> None:
+    async def drain_node(self, node_id: str, actor: str = "system") -> None:
         await self.registry.set_draining(node_id)
+        self.audit.log(action="node.drain", actor=actor, target=node_id, result="success")
         ws = await self.registry.get_socket(node_id)
         if ws:
             msg = ProtocolMessage(
@@ -375,6 +408,11 @@ class OrchestratorRuntime:
                 payload=NodeDrainPayload(node_id=node_id).model_dump(mode="json"),
             )
             await _send_websocket_text(ws, json.dumps(msg.model_dump(mode="json")))
+        await self.events.broadcast(
+            event_type="node.drained",
+            data={"node_id": node_id, "status": NodeStatus.DRAINING.value},
+            entity_id=node_id,
+        )
 
     async def get_decisions(self, limit: int = 50) -> List[SchedulerDecision]:
         async with self._lock:
@@ -386,12 +424,291 @@ class OrchestratorRuntime:
         return calculate_fairness_cv(counts)
 
     # ---------------------------------------------------------
+    # Master Controls & Cluster Management Operations
+    # ---------------------------------------------------------
+
+    async def set_dispatch_paused(self, paused: bool, actor: str = "system") -> None:
+        """Pauses or resumes the orchestrator task dispatch loop."""
+        self._dispatch_paused = paused
+        action = "dispatch.pause" if paused else "dispatch.resume"
+        self.audit.log(action=action, actor=actor, target="dispatcher", result="success")
+        logger.info(f"Task dispatch {'PAUSED' if paused else 'RESUMED'} by {actor}")
+        await self.events.broadcast(
+            event_type="dispatch.state_changed",
+            data={"paused": paused, "actor": actor},
+            entity_id="dispatcher",
+        )
+
+    async def switch_scheduler_mode(self, mode: SchedulerMode, actor: str = "system") -> None:
+        """Safely hot-swaps the active scheduler engine."""
+        prev_mode = self.config.scheduler_mode
+        self.scheduler = self._init_scheduler(mode)
+        if isinstance(self.scheduler, AdaptiveScheduler):
+            self.scheduler.estimator = self.network_estimator
+        self.config.scheduler_mode = mode
+        self.audit.log(
+            action="scheduler.mode_changed",
+            actor=actor,
+            target=mode.value,
+            result="success",
+            details={"previous_mode": prev_mode.value, "new_mode": mode.value},
+        )
+        logger.info(f"Scheduler mode switched from {prev_mode.value} to {mode.value} by {actor}")
+        await self.events.broadcast(
+            event_type="scheduler.mode_changed",
+            data={"previous_mode": prev_mode.value, "new_mode": mode.value, "actor": actor},
+            entity_id="scheduler",
+        )
+
+    async def set_adaptive_toggles(self, toggles: Dict[str, bool], actor: str = "system") -> Dict[str, bool]:
+        """Toggles individual adaptive stages within the AdaptiveScheduler."""
+        if not isinstance(self.scheduler, AdaptiveScheduler):
+            raise ValueError(f"Cannot configure adaptive toggles while in {self.config.scheduler_mode.value} mode")
+        self.scheduler.set_toggles(toggles)
+        current = self.scheduler.get_toggles()
+        self.audit.log(
+            action="scheduler.toggles_changed",
+            actor=actor,
+            target="adaptive_scheduler",
+            result="success",
+            details=current,
+        )
+        await self.events.broadcast(
+            event_type="scheduler.toggles_changed",
+            data=current,
+            entity_id="scheduler",
+        )
+        return current
+
+    async def resume_node(self, node_id: str, actor: str = "system") -> None:
+        """Resumes a drained or maintenance node to online status."""
+        await self.registry.set_resumed(node_id)
+        self.audit.log(action="node.resume", actor=actor, target=node_id, result="success")
+        logger.info(f"Node [{node_id}] resumed to ONLINE by {actor}")
+        await self.events.broadcast(
+            event_type="node.status_changed",
+            data={"node_id": node_id, "status": NodeStatus.ONLINE.value, "actor": actor},
+            entity_id=node_id,
+        )
+
+    async def set_node_maintenance(self, node_id: str, is_maint: bool = True, actor: str = "system") -> None:
+        """Toggles maintenance mode for a node."""
+        await self.registry.set_maintenance(node_id, is_maint=is_maint)
+        status_val = NodeStatus.MAINTENANCE.value if is_maint else NodeStatus.ONLINE.value
+        self.audit.log(action="node.maintenance", actor=actor, target=node_id, result="success", details={"maintenance": is_maint})
+        logger.info(f"Node [{node_id}] maintenance set to {is_maint} by {actor}")
+        await self.events.broadcast(
+            event_type="node.status_changed",
+            data={"node_id": node_id, "status": status_val, "actor": actor},
+            entity_id=node_id,
+        )
+
+    async def remove_node(self, node_id: str, force: bool = False, actor: str = "system") -> bool:
+        """Removes a registered node, ensuring active tasks are handled safely."""
+        running = await self.repo.find_by_assigned_node(node_id, status=TaskStatus.RUNNING)
+        if running and not force:
+            raise ValueError(f"Cannot remove node [{node_id}]: {len(running)} active task(s) currently executing. Drain the node first or use force=True.")
+
+        if running and force:
+            logger.warning(f"Force removing node [{node_id}] with {len(running)} running tasks; re-queueing tasks.")
+            await self._recover_tasks_for_failed_node(node_id)
+
+        removed = await self.registry.remove_node(node_id)
+        if removed:
+            self.audit.log(action="node.remove", actor=actor, target=node_id, result="success", details={"forced": force})
+            await self.events.broadcast(
+                event_type="node.removed",
+                data={"node_id": node_id, "forced": force, "actor": actor},
+                entity_id=node_id,
+            )
+        return removed
+
+    async def get_node_tasks(self, node_id: str, limit: int = 100) -> List[Task]:
+        """Returns all tasks associated with a specific compute node."""
+        running = await self.repo.find_by_assigned_node(node_id, status=TaskStatus.RUNNING)
+        completed = await self.repo.find_by_assigned_node(node_id, status=TaskStatus.COMPLETED)
+        failed = await self.repo.find_by_assigned_node(node_id, status=TaskStatus.FAILED)
+        combined = running + completed + failed
+        combined.sort(key=lambda t: t.created_at, reverse=True)
+        return combined[:limit]
+
+    async def get_scheduler_diagnostics(self) -> Dict[str, Any]:
+        """Gathers a consistent, read-only explainability snapshot of the scheduler pipeline."""
+        nodes = await self.registry.list_nodes()
+        is_adaptive = isinstance(self.scheduler, AdaptiveScheduler)
+
+        candidate_diagnostics = []
+        dummy_task = Task(task_type="image_inference", payload={"model": "yolov8n"})
+        weights = self.scheduler.mwu.get_weights() if is_adaptive else {"cpu": 0.2, "gpu": 0.2, "load": 0.2, "latency": 0.2, "reliability": 0.2}
+
+        mean_score = 1.0
+        if nodes:
+            mean_score = max(0.01, sum(n.effective_score for n in nodes) / len(nodes))
+
+        for n in nodes:
+            deficit = self.scheduler.drr.get_deficit(n.id) if is_adaptive else 0.0
+            adaptive_quantum = round(1.0 * (n.effective_score / mean_score), 3) if is_adaptive else 1.0
+            bid_val = calculate_node_bid(n, dummy_task, weights)
+            candidate_diagnostics.append({
+                "node_id": n.id,
+                "status": n.status.value,
+                "base_score": n.base_score,
+                "performance_multiplier": n.performance_multiplier,
+                "effective_score": n.effective_score,
+                "drr_deficit": deficit,
+                "drr_quantum": adaptive_quantum,
+                "drr_eligible": deficit >= 1.0,
+                "calculated_bid": bid_val,
+                "total_completed": n.total_completed,
+                "total_failed": n.total_failed,
+            })
+
+        q_info = {
+            "entries_count": len(self.scheduler.rl.q_table) if is_adaptive else 0,
+            "epsilon": self.scheduler.rl.epsilon if is_adaptive else 0.0,
+            "learning_rate": self.scheduler.rl.lr if is_adaptive else 0.1,
+            "discount_factor": self.scheduler.rl.gamma if is_adaptive else 0.9,
+            "actions": ["Slot 0: Top Rank", "Slot 1: Second Rank", "Slot 2: Third Rank"],
+            "state_space": "3x3x3 discretized tuples: (score_bucket [0,1,2], load_bucket [0,1,2], priority_bucket [0,1,2]) = 27 states",
+            "sample_table": {str(k): v for k, v in list(self.scheduler.rl.q_table.items())[:12]} if is_adaptive else {},
+        }
+
+        wireless_info = {
+            "per_node": {
+                nid: m.model_dump(mode="json")
+                for nid, m in self.network_estimator._metrics.items()
+            },
+            "formula": "T_remote = T_upload + T_rtt + T_queue + T_infer + T_download vs T_local = T_queue + T_infer",
+            "baselines_ms": {"gpu_ai": 28.0, "cpu_ai": 135.0, "generic": 50.0},
+            "queue_factor_ms": 25.0,
+        }
+
+        recent_decisions = [d.model_dump(mode="json") for d in self._decisions[-25:]]
+
+        return {
+            "mode": self.config.scheduler_mode.value,
+            "dispatch_paused": self._dispatch_paused,
+            "fairness_cv": await self.get_fairness_metric(),
+            "adaptive_toggles": self.scheduler.get_toggles() if is_adaptive else None,
+            "mwu": {
+                "weights": weights,
+                "eta": self.scheduler.mwu.eta if is_adaptive else 0.1,
+                "formula": "w_k(t+1) = w_k(t) * exp(-eta * loss_k), then normalized",
+            },
+            "q_learning": q_info,
+            "drr": {
+                "base_quantum": 1.0,
+                "scheduling_cost": 1.0,
+                "mean_effective_score": round(mean_score, 3),
+            },
+            "candidates": candidate_diagnostics,
+            "wireless_estimator": wireless_info,
+            "recent_decisions": recent_decisions,
+        }
+
+    async def get_detailed_health(self) -> Dict[str, Any]:
+        """Provides in-depth system health across all internal components."""
+        nodes = await self.registry.list_nodes()
+        online_nodes = [n for n in nodes if n.status == NodeStatus.ONLINE]
+        degraded_nodes = [n for n in nodes if n.status == NodeStatus.DEGRADED]
+        draining_nodes = [n for n in nodes if n.status == NodeStatus.DRAINING]
+        offline_nodes = [n for n in nodes if n.status == NodeStatus.OFFLINE]
+
+        tasks = await self.repo.list(limit=2000)
+        running = [t for t in tasks if t.status == TaskStatus.RUNNING]
+        pending = [t for t in tasks if t.status == TaskStatus.PENDING]
+        dlq_items = await self.dlq.list_items()
+
+        # Database health check
+        db_healthy = True
+        try:
+            await self.repo.list(limit=1)
+        except Exception:
+            db_healthy = False
+
+        status_str = "healthy"
+        if not online_nodes:
+            status_str = "no_online_nodes"
+        elif len(dlq_items) > 10:
+            status_str = "elevated_dlq"
+        elif not db_healthy:
+            status_str = "database_error"
+
+        return {
+            "status": status_str,
+            "dispatch_paused": self._dispatch_paused,
+            "scheduler_mode": self.config.scheduler_mode.value,
+            "nodes": {
+                "total": len(nodes),
+                "online": len(online_nodes),
+                "degraded": len(degraded_nodes),
+                "draining": len(draining_nodes),
+                "offline": len(offline_nodes),
+            },
+            "tasks": {
+                "total": len(tasks),
+                "running": len(running),
+                "pending": len(pending),
+                "dlq": len(dlq_items),
+                "priority_queue_size": self.queue.size,
+            },
+            "components": {
+                "database": "operational" if db_healthy else "degraded",
+                "priority_queue": "operational",
+                "binary_payload_store": f"{len(self.payload_store._store)} in-memory payloads",
+                "checkpoint_manager": f"{len(self.checkpoints._checkpoints)} checkpoints",
+                "idempotency_store": f"{len(self.idempotency._entries)} keys",
+                "standby_replication": "standby" if self.config.standby_mode else "primary",
+            },
+            "timestamp": utc_now().isoformat(),
+        }
+
+    async def update_system_config(self, updates: Dict[str, Any], actor: str = "system") -> Dict[str, Any]:
+        """Applies dynamic updates to permitted system configuration options."""
+        allowed_keys = {
+            "heartbeat_interval_seconds",
+            "node_timeout_seconds",
+            "task_lease_seconds",
+            "scheduler_poll_seconds",
+            "ewma_alpha",
+            "mwu_eta",
+            "rl_epsilon",
+        }
+        modified = {}
+        for k, v in updates.items():
+            if k in allowed_keys and hasattr(self.config, k):
+                try:
+                    val = float(v)
+                    setattr(self.config, k, val)
+                    modified[k] = val
+                except (ValueError, TypeError):
+                    pass
+
+        self.audit.log(
+            action="system.config_updated",
+            actor=actor,
+            target="system_config",
+            result="success",
+            details=modified,
+        )
+        await self.events.broadcast(
+            event_type="config.updated",
+            data=modified,
+            entity_id="system_config",
+        )
+        return modified
+
+    # ---------------------------------------------------------
     # Core Dispatch Loop
     # ---------------------------------------------------------
 
     async def _dispatch_loop(self) -> None:
         while self.is_running:
             try:
+                if self._dispatch_paused:
+                    await asyncio.sleep(0.5)
+                    continue
+
                 task = await self.queue.dequeue(timeout_seconds=0.5)
                 if not task:
                     await asyncio.sleep(self.config.scheduler_poll_seconds)
@@ -483,6 +800,22 @@ class OrchestratorRuntime:
                         )
 
                 logger.info(f"Dispatched task [{task.id}] attempt [{attempt_id}] to node [{selected_node_id}] via {decision.policy_used.value}")
+                await self.events.broadcast(
+                    event_type="task.assigned",
+                    data={
+                        "task_id": task.id,
+                        "task_type": task.task_type,
+                        "selected_node_id": selected_node_id,
+                        "attempt_id": attempt_id,
+                        "priority": task.priority,
+                        "policy_used": decision.policy_used.value,
+                        "candidate_scores": decision.candidate_scores,
+                        "bids": decision.bids,
+                        "offload_decision": getattr(decision, "offload_decision", "remote"),
+                        "offload_reason": getattr(decision, "offload_reason", ""),
+                    },
+                    entity_id=task.id,
+                )
 
             except asyncio.CancelledError:
                 break
@@ -631,6 +964,18 @@ class OrchestratorRuntime:
                 )
 
         logger.info(f"Task [{task_id}] successfully COMPLETED by node [{node_id}] in {res.execution_time_seconds}s")
+        await self.events.broadcast(
+            event_type="task.completed",
+            data={
+                "task_id": task_id,
+                "attempt_id": attempt_id,
+                "node_id": node_id,
+                "execution_time_seconds": res.execution_time_seconds,
+                "output": res.output,
+                "metrics": res.metrics,
+            },
+            entity_id=task_id,
+        )
 
         # Handle recurring task
         if task.repeat_every_seconds and task.repeat_every_seconds > 0:
@@ -701,11 +1046,32 @@ class OrchestratorRuntime:
                 await self.queue.enqueue(t)
 
             asyncio.create_task(delayed_requeue(task, decision.delay_seconds))
+            await self.events.broadcast(
+                event_type="task.retrying",
+                data={
+                    "task_id": task_id,
+                    "node_id": node_id,
+                    "error": error,
+                    "attempt": decision.attempt,
+                    "delay_seconds": decision.delay_seconds,
+                },
+                entity_id=task_id,
+            )
         else:
             # Retries exhausted -> Move to Dead-Letter Queue (DLQ)
             logger.error(f"Task [{task_id}] permanently failed after retries. Moving to DLQ: {decision.reason}")
             await self.dlq.add(task, final_error=decision.reason)
             await self.repo.save(task)
+            await self.events.broadcast(
+                event_type="task.failed",
+                data={
+                    "task_id": task_id,
+                    "node_id": node_id,
+                    "error": decision.reason,
+                    "moved_to_dlq": True,
+                },
+                entity_id=task_id,
+            )
 
     # ---------------------------------------------------------
     # Health Monitoring & Fault Recovery Loops
@@ -726,6 +1092,11 @@ class OrchestratorRuntime:
                             logger.error(f"Node [{node.id}] heartbeat timed out ({elapsed:.1f}s > {self.config.node_timeout_seconds}s). Marking OFFLINE.")
                             await self.registry.mark_offline(node.id)
                             await self._recover_tasks_for_failed_node(node.id)
+                            await self.events.broadcast(
+                                event_type="node.status_changed",
+                                data={"node_id": node.id, "status": NodeStatus.OFFLINE.value, "reason": "Heartbeat timeout"},
+                                entity_id=node.id,
+                            )
 
             except asyncio.CancelledError:
                 break

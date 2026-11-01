@@ -87,3 +87,20 @@ class NodeRegistry:
             node = self._nodes.get(node_id)
             if node:
                 node.status = NodeStatus.DRAINING
+
+    async def set_resumed(self, node_id: str) -> None:
+        async with self._lock:
+            node = self._nodes.get(node_id)
+            if node:
+                node.status = NodeStatus.ONLINE
+
+    async def set_maintenance(self, node_id: str, is_maint: bool = True) -> None:
+        async with self._lock:
+            node = self._nodes.get(node_id)
+            if node:
+                node.status = NodeStatus.MAINTENANCE if is_maint else NodeStatus.ONLINE
+
+    async def remove_node(self, node_id: str) -> bool:
+        async with self._lock:
+            self._sockets.pop(node_id, None)
+            return self._nodes.pop(node_id, None) is not None

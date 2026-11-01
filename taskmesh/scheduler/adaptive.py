@@ -48,6 +48,32 @@ class AdaptiveScheduler:
         self.enable_wireless_cost = enable_wireless_cost
         self._lock = asyncio.Lock()
 
+    def get_toggles(self) -> Dict[str, bool]:
+        """Returns the current state of adaptive component ablation toggles."""
+        return {
+            "enable_ewma": self.enable_ewma,
+            "enable_drr": self.enable_drr,
+            "enable_bidding": self.enable_bidding,
+            "enable_mwu": self.enable_mwu,
+            "enable_rl": self.enable_rl,
+            "enable_wireless_cost": self.enable_wireless_cost,
+        }
+
+    def set_toggles(self, toggles: Dict[str, bool]) -> None:
+        """Updates the adaptive component ablation toggles."""
+        if "enable_ewma" in toggles:
+            self.enable_ewma = bool(toggles["enable_ewma"])
+        if "enable_drr" in toggles:
+            self.enable_drr = bool(toggles["enable_drr"])
+        if "enable_bidding" in toggles:
+            self.enable_bidding = bool(toggles["enable_bidding"])
+        if "enable_mwu" in toggles:
+            self.enable_mwu = bool(toggles["enable_mwu"])
+        if "enable_rl" in toggles:
+            self.enable_rl = bool(toggles["enable_rl"])
+        if "enable_wireless_cost" in toggles:
+            self.enable_wireless_cost = bool(toggles["enable_wireless_cost"])
+
     async def select_node(self, task: Task, candidates: List[NodeProfile]) -> SchedulerDecision:
         eligible = filter_eligible_nodes(task, candidates)
         if not eligible:

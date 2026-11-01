@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument("--no-discovery", action="store_true", help="Disable UDP broadcast discovery")
     parser.add_argument("--heartbeat-interval", type=float, default=None, help="Heartbeat interval in seconds")
     parser.add_argument("--telemetry-interval", type=float, default=None, help="Telemetry interval in seconds")
+    parser.add_argument("--console-port", type=int, default=None, help="Local worker console HTTP port (e.g. 8081)")
     args = parser.parse_args()
 
     cfg = NodeConfig()
@@ -71,6 +72,8 @@ def main() -> None:
         cfg.heartbeat_interval_seconds = args.heartbeat_interval
     if args.telemetry_interval is not None:
         cfg.telemetry_interval_seconds = args.telemetry_interval
+    if args.console_port is not None:
+        cfg.console_port = args.console_port
 
 
     agent = NodeAgent(config=cfg)

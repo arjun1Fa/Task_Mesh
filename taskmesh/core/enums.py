@@ -28,6 +28,7 @@ class NodeStatus(str, Enum):
     ONLINE = "online"
     DEGRADED = "degraded"
     DRAINING = "draining"
+    MAINTENANCE = "maintenance"
     OFFLINE = "offline"
 
 
