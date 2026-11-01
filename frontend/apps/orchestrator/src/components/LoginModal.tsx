@@ -10,7 +10,7 @@ interface LoginModalProps {
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
   const { login } = useAuth()
   const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('admin123')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -113,13 +113,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 borderRadius: 'var(--radius-sm)',
               }}
             >
-              Default accounts:
+              First-run bootstrap:
               <br />
-              • <code>admin</code> / <code>admin123</code> (Super Admin)
+              • Check <code>.admin_bootstrap_secret</code> or <code>TASKMESH_ADMIN_PASSWORD</code>
               <br />
-              • <code>operator</code> / <code>operator123</code> (Cluster Operator)
-              <br />
-              • <code>viewer</code> / <code>viewer123</code> (Read-Only Viewer)
+              • Contact cluster administrator for provisioned user credentials
             </div>
           </div>
 
