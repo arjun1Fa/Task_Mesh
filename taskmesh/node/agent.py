@@ -4,6 +4,7 @@ import asyncio
 from collections import deque
 import json
 import logging
+import secrets
 from typing import Optional
 import websockets
 
@@ -60,6 +61,9 @@ class NodeAgent:
         self.advertiser: Optional[NodeDiscoveryAdvertiser] = None
 
         # Worker Console State & Telemetry History
+        self.console_token: str = secrets.token_hex(24)
+        self.console_status: str = "running" if self.config.console_port else "disabled"
+        self._console_server: Optional[Any] = None
         self._task_history: deque = deque(maxlen=100)
         self._logs_buffer: deque = deque(maxlen=200)
         self._tasks_completed_count: int = 0
@@ -101,7 +105,7 @@ class NodeAgent:
         if self.config.console_port:
             from taskmesh.node.console_server import start_console_server
             self._console_task = asyncio.create_task(
-                start_console_server(self, self.config.console_port),
+                start_console_server(self, self.config.console_port, host=self.config.console_host),
                 name="worker_console_server",
             )
 
