@@ -149,6 +149,9 @@ export const api = {
     request<Task[]>(`/v1/nodes/${nodeId}/tasks?limit=${limit}`),
 
   // Tasks Management
+  getSupportedHandlers: () =>
+    request<{ supported_handlers: string[]; online_nodes_count: number }>('/v1/tasks/supported-handlers'),
+
   listTasks: (status?: TaskStatus, limit: number = 100) =>
     request<Task[]>(`/v1/tasks?limit=${limit}${status ? `&status=${status}` : ''}`),
 
@@ -167,6 +170,30 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  submitBinaryTask: async (formData: FormData): Promise<Task> => {
+    const token = getToken()
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    const response = await fetch(`${BASE_URL}/v1/tasks/binary`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!response.ok) {
+      let errMsg = `HTTP ${response.status}`
+      try {
+        const errJson = await response.json()
+        errMsg = errJson.detail || errMsg
+      } catch {
+        // fallback
+      }
+      throw new Error(errMsg)
+    }
+    return response.json()
+  },
 
   cancelTask: (taskId: string, reason: string = 'Operator cancellation') =>
     request<Task>(`/v1/tasks/${taskId}/cancel?reason=${encodeURIComponent(reason)}`, {

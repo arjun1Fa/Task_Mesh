@@ -14,6 +14,7 @@ import {
   Activity
 } from 'lucide-react'
 import type { NodeProfile, Task, SchedulerDecision } from '@shared/types'
+import { TaskDetailsDrawer } from '@shared/components/TaskDetailsDrawer'
 
 interface LiveTaskAllocationProps {
   nodes: NodeProfile[]
@@ -226,65 +227,11 @@ export const LiveTaskAllocation: React.FC<LiveTaskAllocationProps> = ({
       </div>
 
       {/* Task Inspection Drawer */}
-      {selectedTask && (
-        <div className="card" style={{ border: '1px solid var(--accent-blue-border)', backgroundColor: 'var(--bg-surface)' }}>
-          <div className="card-header">
-            <div className="card-title">
-              <Eye size={16} color="var(--accent-blue)" />
-              Task Execution Lifecycle & Decision: <span className="mono">{selectedTask.id}</span>
-            </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setSelectedTask(null)}>
-              Close
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ backgroundColor: 'var(--bg-surface-sunken)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Task Type & Priority</div>
-              <div className="mono" style={{ fontWeight: 700, marginTop: '2px' }}>{selectedTask.task_type} (P{selectedTask.priority})</div>
-            </div>
-
-            <div style={{ backgroundColor: 'var(--bg-surface-sunken)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Assigned Worker</div>
-              <div className="mono" style={{ fontWeight: 700, color: 'var(--accent-emerald)', marginTop: '2px' }}>
-                {selectedTask.assigned_node_id || 'Unassigned'}
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: 'var(--bg-surface-sunken)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>
-              <span className={`badge badge-${selectedTask.status}`} style={{ marginTop: '4px' }}>
-                {selectedTask.status.toUpperCase()}
-              </span>
-            </div>
-
-            <div style={{ backgroundColor: 'var(--bg-surface-sunken)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Duration</div>
-              <div className="mono" style={{ fontWeight: 700, marginTop: '2px' }}>
-                {selectedTask.result?.execution_time_seconds ? `${Number(selectedTask.result.execution_time_seconds).toFixed(3)}s` : 'In flight'}
-              </div>
-            </div>
-          </div>
-
-          {selectedDecision && (
-            <div style={{ backgroundColor: 'var(--bg-surface-sunken)', padding: '0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', marginBottom: '1rem' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-blue)', marginBottom: '0.4rem' }}>
-                Auction Bidding Breakdown:
-              </div>
-              <div className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Policy: <strong>{selectedDecision.policy_used}</strong> &bull; Candidates: {selectedDecision.candidate_node_ids?.join(', ')}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Payload:</div>
-            <pre className="mono" style={{ backgroundColor: 'var(--bg-surface-sunken)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: '0.75rem', color: 'var(--text-secondary)', maxHeight: '180px', overflowY: 'auto' }}>
-              {JSON.stringify(selectedTask.payload, null, 2)}
-            </pre>
-          </div>
-        </div>
-      )}
+      <TaskDetailsDrawer
+        task={selectedTask}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+      />
     </div>
   )
 }

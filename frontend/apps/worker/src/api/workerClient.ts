@@ -72,6 +72,10 @@ class WorkerApiClient {
     return this.request<WorkerTasksResponse>('/api/worker/tasks')
   }
 
+  async getTaskById(taskId: string): Promise<any> {
+    return this.request<any>(`/api/worker/tasks/${taskId}`)
+  }
+
   // Concurrency Pool
   async getPool(): Promise<WorkerPoolStatus> {
     return this.request<WorkerPoolStatus>('/api/worker/pool')

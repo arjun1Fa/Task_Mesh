@@ -74,6 +74,8 @@ class TaskResult(BaseModel):
     execution_time_seconds: float = 0.0
     metrics: Dict[str, Any] = Field(default_factory=dict)
     completed_at: datetime = Field(default_factory=utc_now)
+    started_at: Optional[datetime] = None
+    worker_hostname: Optional[str] = None
 
 
 class TaskCreate(BaseModel):
@@ -174,6 +176,10 @@ class NodeCapabilities(BaseModel):
     port: Optional[int] = None
     is_local: bool = False
     models_loaded: List[str] = Field(default_factory=list)
+    # AI & Computer Vision Model Capabilities
+    supported_models: List[str] = Field(default_factory=list)
+    model_readiness: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    inference_backend: str = "cpu"
 
 
 class NodeTelemetry(BaseModel):

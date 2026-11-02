@@ -304,9 +304,26 @@ def create_app(
     # REST API Routes: Tasks
     # ---------------------------------------------------------
 
+    @app.get("/v1/tasks/supported-handlers")
+    async def get_supported_handlers(request: Request) -> Dict[str, Any]:
+        require_permission(request, "tasks.view")
+        nodes = await rt.registry.list_nodes(status=NodeStatus.ONLINE)
+        handlers_set = set()
+        for n in nodes:
+            handlers_set.update(n.capabilities.supported_handlers)
+        default_known = ["cpu_test", "image_inference", "log", "sleep", "echo", "matrix_multiply", "benchmark"]
+        if not handlers_set:
+            handlers_set = set(default_known)
+        return {
+            "supported_handlers": sorted(list(handlers_set)),
+            "online_nodes_count": len(nodes),
+        }
+
     @app.post("/v1/tasks", response_model=Task, status_code=201)
     async def submit_task(req: TaskCreate, request: Request) -> Task:
         require_permission(request, "tasks.submit")
+        if not req.task_type or not req.task_type.strip():
+            raise HTTPException(status_code=400, detail="task_type is required")
         return await rt.submit_task(req)
 
     @app.post("/v1/tasks/binary", response_model=Task, status_code=201)
@@ -321,28 +338,119 @@ def create_app(
         require_permission(request, "tasks.submit")
         content_type = request.headers.get("content-type", "")
         binary_data = b""
+        conf_val = 0.25
+        palette_k = 8
+
         if "multipart/form-data" in content_type:
             form = await request.form()
-            file_item = form.get("file")
+            file_item = form.get("file") or form.get("image")
             if hasattr(file_item, "read"):
                 binary_data = await file_item.read()
             elif isinstance(file_item, (bytes, bytearray)):
                 binary_data = bytes(file_item)
+
+            if "model" in form:
+                model = str(form["model"])
+            if "priority" in form:
+                try:
+                    priority = int(form["priority"])
+                except Exception:
+                    pass
+            if "confidence_threshold" in form or "conf" in form:
+                try:
+                    conf_val = float(form.get("confidence_threshold") or form.get("conf") or 0.25)
+                except Exception:
+                    pass
+            if "palette_size" in form or "num_colors" in form:
+                try:
+                    palette_k = int(form.get("palette_size") or form.get("num_colors") or 8)
+                except Exception:
+                    pass
         else:
             binary_data = await request.body()
 
         if not binary_data:
             raise HTTPException(status_code=400, detail="Missing binary payload data in request body")
 
+        if len(binary_data) > 25 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Image file size exceeds maximum limit of 25MB")
+
+        # Validate image integrity and dimensions using OpenCV
+        img_w, img_h = 640, 640
+        try:
+            import cv2
+            import numpy as np
+            nparr = np.frombuffer(binary_data, np.uint8)
+            decoded = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if decoded is None:
+                raise ValueError("Could not decode image: unsupported or corrupted file format")
+            img_h, img_w = decoded.shape[:2]
+            if img_h < 16 or img_w < 16:
+                raise ValueError(f"Image dimensions too small ({img_w}x{img_h} < 16x16)")
+            if img_h > 8192 or img_w > 8192:
+                raise ValueError(f"Image dimensions too large ({img_w}x{img_h} > 8192x8192)")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Image validation failed: {e}")
+
         policy_val = OffloadPolicy(offload_policy) if offload_policy in OffloadPolicy._value2member_map_ else OffloadPolicy.WIRELESS_ALLOWED
         req = TaskCreate(
             task_type=task_type,
-            payload={"model": model, "mime_type": content_type or "image/jpeg"},
+            payload={
+                "model": model,
+                "confidence_threshold": conf_val,
+                "palette_size": palette_k,
+                "image_width": img_w,
+                "image_height": img_h,
+                "mime_type": "image/jpeg" if binary_data.startswith(b"\xff\xd8") else "image/png",
+            },
             priority=priority,
             requires_gpu=requires_gpu,
             offload_policy=policy_val,
         )
         return await rt.submit_task(req, binary_data=binary_data)
+
+    @app.post("/v1/tasks/{task_id}/artifacts/annotated-image")
+    async def upload_task_annotated_image(task_id: str, request: Request) -> Dict[str, Any]:
+        """Allows worker node or authorized operator to upload the annotated output image artifact."""
+        token_hdr = request.headers.get("X-Node-Token", "")
+        if token_hdr != rt.config.join_token:
+            auth_payload = get_token_payload(request)
+            if not auth_payload or not rt.auth.check_permission(auth_payload, "tasks.submit"):
+                raise HTTPException(status_code=401, detail="Unauthorized artifact upload")
+
+        body_bytes = await request.body()
+        if not body_bytes:
+            raise HTTPException(status_code=400, detail="Empty artifact body")
+
+        art_id = request.headers.get("X-Artifact-ID", f"art_out_{task_id}")
+        await rt.payload_store.add_artifact(art_id, body_bytes, mime_type="image/jpeg", task_id=task_id)
+        return {"status": "uploaded", "artifact_id": art_id, "size_bytes": len(body_bytes)}
+
+    @app.get("/v1/tasks/{task_id}/input-image")
+    async def get_task_input_image(task_id: str, request: Request) -> Response:
+        require_permission(request, "tasks.view")
+        data = await rt.payload_store.get_payload(task_id)
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No input image found for task {task_id}")
+        meta = await rt.payload_store.get_meta(task_id)
+        mime = meta.mime_type if meta else "image/jpeg"
+        return Response(content=data, media_type=mime)
+
+    @app.get("/v1/tasks/{task_id}/annotated-image")
+    async def get_task_annotated_image(task_id: str, request: Request) -> Response:
+        require_permission(request, "tasks.view")
+        data = await rt.payload_store.get_artifact(f"art_out_{task_id}") or await rt.payload_store.get_artifact(f"annotated_{task_id}")
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No annotated output image found for task {task_id}")
+        return Response(content=data, media_type="image/jpeg")
+
+    @app.get("/v1/artifacts/{artifact_id}")
+    async def get_artifact_by_id(artifact_id: str, request: Request) -> Response:
+        require_permission(request, "tasks.view")
+        data = await rt.payload_store.get_artifact(artifact_id) or await rt.payload_store.get_payload(artifact_id)
+        if not data:
+            raise HTTPException(status_code=404, detail=f"Artifact '{artifact_id}' not found")
+        return Response(content=data, media_type="image/jpeg")
 
     @app.get("/v1/tasks/{task_id}/payload")
     async def get_task_payload(task_id: str, request: Request) -> Response:

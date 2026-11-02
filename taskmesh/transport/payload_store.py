@@ -1,7 +1,8 @@
-"""In-memory safe payload store and chunk reassembly engine."""
+"""In-memory and persistent safe payload store and chunk reassembly engine."""
 
 import asyncio
 import math
+import os
 from typing import Dict, List, Optional, Tuple
 
 from taskmesh.core.models import BinaryPayloadMeta
@@ -22,13 +23,37 @@ class PayloadChecksumMismatchError(ValueError):
 
 
 class BinaryPayloadStore:
-    """Thread-safe payload storage enforcing maximum size limits."""
+    """Thread-safe payload and artifact storage with persistent disk backup."""
 
-    def __init__(self, max_payload_size_bytes: int = 50 * 1024 * 1024) -> None:
+    def __init__(
+        self,
+        max_payload_size_bytes: int = 50 * 1024 * 1024,
+        storage_dir: Optional[str] = None,
+    ) -> None:
         self.max_payload_size_bytes = max_payload_size_bytes
+        self.storage_dir = storage_dir or os.path.join(os.getcwd(), ".taskmesh", "artifacts")
+        os.makedirs(self.storage_dir, exist_ok=True)
         self._store: Dict[str, bytes] = {}
         self._meta: Dict[str, BinaryPayloadMeta] = {}
         self._lock = asyncio.Lock()
+        self._load_disk_artifacts()
+
+    def _load_disk_artifacts(self) -> None:
+        """Indexes pre-existing artifacts from disk storage."""
+        if not os.path.exists(self.storage_dir):
+            return
+        try:
+            for fname in os.listdir(self.storage_dir):
+                if fname.endswith(".bin"):
+                    key = fname[:-4]
+                    fpath = os.path.join(self.storage_dir, fname)
+                    try:
+                        with open(fpath, "rb") as f:
+                            self._store[key] = f.read()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
     async def add_payload(
         self,
@@ -49,8 +74,10 @@ class BinaryPayloadStore:
 
         checksum = compute_payload_sha256(data)
         total_chunks = max(1, math.ceil(len(data) / chunk_size_bytes)) if len(data) > 0 else 1
+        artifact_in_id = f"art_in_{task_id}"
 
         meta = BinaryPayloadMeta(
+            payload_id=artifact_in_id,
             task_id=task_id,
             workload_type=workload_type,
             model_identifier=model_identifier,
@@ -65,13 +92,61 @@ class BinaryPayloadStore:
 
         async with self._lock:
             self._store[task_id] = data
+            self._store[artifact_in_id] = data
             self._meta[task_id] = meta
+            self._meta[artifact_in_id] = meta
+
+        # Persist to disk for restart durability
+        self._write_disk(task_id, data)
+        self._write_disk(artifact_in_id, data)
 
         return meta
 
+    async def add_artifact(
+        self,
+        artifact_id: str,
+        data: bytes,
+        mime_type: str = "image/jpeg",
+        task_id: Optional[str] = None,
+    ) -> str:
+        """Stores a named artifact (e.g. annotated output image) with disk durability."""
+        if len(data) > self.max_payload_size_bytes:
+            raise PayloadSizeLimitExceededError(f"Artifact size {len(data)} exceeds limit")
+
+        async with self._lock:
+            self._store[artifact_id] = data
+            if task_id:
+                self._store[f"annotated_{task_id}"] = data
+                self._store[f"art_out_{task_id}"] = data
+
+        self._write_disk(artifact_id, data)
+        if task_id:
+            self._write_disk(f"annotated_{task_id}", data)
+            self._write_disk(f"art_out_{task_id}", data)
+
+        return artifact_id
+
+    def _write_disk(self, key: str, data: bytes) -> None:
+        try:
+            safe_name = "".join(c for c in key if c.isalnum() or c in ("-", "_")) + ".bin"
+            target = os.path.join(self.storage_dir, safe_name)
+            with open(target, "wb") as f:
+                f.write(data)
+        except Exception:
+            pass
+
     async def get_payload(self, task_id: str) -> Optional[bytes]:
         async with self._lock:
-            return self._store.get(task_id)
+            if task_id in self._store:
+                return self._store[task_id]
+            art_id = f"art_in_{task_id}"
+            if art_id in self._store:
+                return self._store[art_id]
+            return None
+
+    async def get_artifact(self, artifact_id: str) -> Optional[bytes]:
+        async with self._lock:
+            return self._store.get(artifact_id)
 
     async def get_meta(self, task_id: str) -> Optional[BinaryPayloadMeta]:
         async with self._lock:
@@ -80,6 +155,7 @@ class BinaryPayloadStore:
     async def remove_payload(self, task_id: str) -> None:
         async with self._lock:
             self._store.pop(task_id, None)
+            self._store.pop(f"art_in_{task_id}", None)
             self._meta.pop(task_id, None)
 
 

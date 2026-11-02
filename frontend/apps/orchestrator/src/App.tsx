@@ -369,6 +369,7 @@ export const App: React.FC = () => {
         isOpen={isSubmitModalOpen}
         onClose={() => setIsSubmitModalOpen(false)}
         onTaskSubmitted={refreshClusterData}
+        onNavigateToTasks={() => setActiveTab('queue')}
       />
 
       <LoginModal

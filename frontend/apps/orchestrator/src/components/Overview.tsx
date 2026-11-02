@@ -40,9 +40,8 @@ export const Overview: React.FC<OverviewProps> = ({
   onNavigateToTasks,
   onOpenLogin,
 }) => {
-  const { can, isAuthenticated, login } = useAuth()
+  const { can, isAuthenticated } = useAuth()
   const [isTogglingDispatch, setIsTogglingDispatch] = useState(false)
-  const [isQuickLoggingIn, setIsQuickLoggingIn] = useState(false)
 
   const onlineNodes = nodes.filter((n) => n.status === 'online')
   const degradedNodes = nodes.filter((n) => n.status === 'degraded' || n.status === 'draining')
@@ -79,18 +78,6 @@ export const Overview: React.FC<OverviewProps> = ({
     }
   }
 
-  const handleQuickLogin = async (user: string, pass: string) => {
-    setIsQuickLoggingIn(true)
-    try {
-      await login(user, pass)
-      onRefresh()
-    } catch (e: any) {
-      alert(`Sign in failed: ${e.message}`)
-    } finally {
-      setIsQuickLoggingIn(false)
-    }
-  }
-
   return (
     <div>
       {!isAuthenticated && (
@@ -119,24 +106,15 @@ export const Overview: React.FC<OverviewProps> = ({
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {onOpenLogin && (
             <button
               className="btn btn-primary btn-sm"
-              onClick={() => handleQuickLogin('admin', 'admin123')}
-              disabled={isQuickLoggingIn}
+              onClick={onOpenLogin}
             >
-              <Shield size={12} />
-              <span>Sign In as Admin</span>
+              <LogIn size={13} />
+              <span>Sign In to Cluster</span>
             </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => handleQuickLogin('operator', 'operator123')}
-              disabled={isQuickLoggingIn}
-            >
-              <Shield size={12} color="var(--accent-purple)" />
-              <span>Sign In as Operator</span>
-            </button>
-          </div>
+          )}
         </div>
       )}
 
