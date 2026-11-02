@@ -1,13 +1,13 @@
-/* TaskMesh Production Design System — Premium Cybernetic Infrastructure */
+/* TaskMesh Production Design System — Deep Neon Cybernetic Infrastructure */
 
 :root {
-  /* Surfaces — Near-Black Charcoal with subtle warm & cool depth */
-  --bg-page: #08090c;
-  --bg-surface: #0e1017;
-  --bg-surface-elevated: #141722;
-  --bg-surface-sunken: #06070a;
+  /* Surfaces — Rich Near-Black Obsidian with layered depth */
+  --bg-page: #06070a;
+  --bg-surface: #0c0e15;
+  --bg-surface-elevated: #131622;
+  --bg-surface-sunken: #040508;
   --bg-hover: #1b1f2e;
-  --bg-active: #22273b;
+  --bg-active: #23293d;
 
   /* Layered Structural Borders */
   --border-subtle: rgba(255, 255, 255, 0.05);
@@ -72,7 +72,7 @@
   --status-offline: #64748b;
   --status-disconnected: #ff334b;
 
-  --bg-main: #08090c;
+  --bg-main: #06070a;
   --border-color: rgba(255, 255, 255, 0.09);
   --text-dim: #94a3b8;
   --text-color: #f8fafc;
@@ -94,7 +94,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Scrollbars */
+/* Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -190,7 +190,6 @@ body {
   color: #d8b4fe;
 }
 
-/* Online Cluster Status Pill in Header */
 .cluster-online-badge {
   display: inline-flex;
   align-items: center;
@@ -256,7 +255,7 @@ body {
 /* Sidebar */
 .sidebar {
   width: var(--sidebar-width);
-  background: linear-gradient(180deg, #0e1017 0%, #090a0f 100%);
+  background: linear-gradient(180deg, #0c0e15 0%, #07080c 100%);
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
@@ -335,7 +334,7 @@ button {
 .sidebar-footer {
   padding: 1rem 1.25rem;
   border-top: 1px solid var(--border-subtle);
-  background-color: rgba(6, 7, 10, 0.6);
+  background-color: rgba(4, 5, 8, 0.7);
   font-size: 0.75rem;
   color: var(--text-muted);
   display: flex;
@@ -343,27 +342,39 @@ button {
   align-items: center;
 }
 
-/* Main Content Workspace */
+/* Main Content Workspace — Rich Textured Cybernetic Grid Background */
 .content-area {
   flex: 1;
   overflow-y: auto;
   padding: 1.75rem 2rem;
-  background: radial-gradient(circle at 10% 5%, rgba(255, 51, 75, 0.04) 0%, transparent 40%),
-              radial-gradient(circle at 90% 10%, rgba(168, 85, 247, 0.04) 0%, transparent 40%),
-              linear-gradient(180deg, #08090c 0%, #0a0c12 100%);
+  background-color: #06070a;
+  background-image: 
+    radial-gradient(circle at 15% 10%, rgba(255, 51, 75, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(168, 85, 247, 0.07) 0%, transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(255, 51, 75, 0.05) 0%, transparent 50%),
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+  background-position: 0 0, 0 0, 0 0, -1px -1px, -1px -1px;
 }
 
-/* Cards & Layered Surfaces */
+/* Cards & Layered Surfaces with Rich Subtle Glow & Borders */
 .card {
-  background: linear-gradient(180deg, rgba(20, 23, 34, 0.75) 0%, rgba(14, 16, 23, 0.85) 100%);
-  border: 1px solid var(--border-main);
+  background: linear-gradient(180deg, rgba(19, 22, 34, 0.88) 0%, rgba(12, 14, 21, 0.94) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   padding: 1.35rem;
   margin-bottom: 1.35rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   position: relative;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  border-color: rgba(255, 51, 75, 0.25);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 51, 75, 0.08);
 }
 
 .card-header {
@@ -402,21 +413,21 @@ button {
 }
 
 .kpi-card {
-  background: linear-gradient(180deg, rgba(20, 23, 34, 0.85) 0%, rgba(14, 16, 23, 0.95) 100%);
-  border: 1px solid var(--border-main);
+  background: linear-gradient(180deg, rgba(20, 24, 37, 0.9) 0%, rgba(13, 15, 24, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   padding: 1.25rem;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
 
 .kpi-card:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 51, 75, 0.35);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 18px rgba(255, 51, 75, 0.15);
 }
 
 .kpi-card-header {
