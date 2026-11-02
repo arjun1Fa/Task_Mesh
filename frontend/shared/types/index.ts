@@ -38,6 +38,8 @@ export interface TaskResult {
   execution_time_seconds: number
   metrics?: Record<string, any>
   completed_at: string
+  started_at?: string
+  worker_hostname?: string
 }
 
 export interface Task {

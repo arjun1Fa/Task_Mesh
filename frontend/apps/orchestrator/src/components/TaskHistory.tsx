@@ -17,6 +17,7 @@ import { api } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import type { Task, TaskStatus } from '@shared/types'
 import { ConfirmationModal } from '@shared/components/ConfirmationModal'
+import { TaskDetailsDrawer } from '@shared/components/TaskDetailsDrawer'
 
 export const TaskHistory: React.FC = () => {
   const { can } = useAuth()
@@ -269,115 +270,15 @@ export const TaskHistory: React.FC = () => {
       </div>
 
       {/* Task Details Drawer Modal */}
-      {selectedTask && (
-        <div className="modal-backdrop" onClick={() => setSelectedTask(null)}>
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto' }}
-          >
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <History size={18} color="var(--accent-blue)" />
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-                  Historical Record: <span className="mono">{selectedTask.id}</span>
-                </h3>
-              </div>
-              <button className="btn btn-secondary btn-icon" onClick={() => setSelectedTask(null)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="grid grid-3" style={{ gap: '0.75rem' }}>
-                <div className="card" style={{ margin: 0, padding: '0.75rem' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Status</div>
-                  <div style={{ marginTop: '0.25rem' }}>
-                    <span className={`status-pill ${selectedTask.status}`}>{selectedTask.status}</span>
-                  </div>
-                </div>
-                <div className="card" style={{ margin: 0, padding: '0.75rem' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Assigned Node</div>
-                  <div className="mono" style={{ marginTop: '0.25rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
-                    {selectedTask.assigned_node_id || 'None'}
-                  </div>
-                </div>
-                <div className="card" style={{ margin: 0, padding: '0.75rem' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Execution Duration</div>
-                  <div className="mono" style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: 'var(--accent-green)' }}>
-                    {selectedTask.result?.execution_time_seconds ? `${Number(selectedTask.result.execution_time_seconds).toFixed(3)}s` : 'N/A'}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Task Payload</div>
-                <pre
-                  className="code-font"
-                  style={{
-                    backgroundColor: 'rgba(0,0,0,0.3)',
-                    padding: '0.75rem',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-color)',
-                    maxHeight: '160px',
-                    overflowY: 'auto',
-                    fontSize: '0.78rem',
-                  }}
-                >
-                  {JSON.stringify(selectedTask.payload, null, 2)}
-                </pre>
-              </div>
-
-              {selectedTask.result && (
-                <div>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Final Output</div>
-                  <pre
-                    className="code-font"
-                    style={{
-                      backgroundColor: 'rgba(0,0,0,0.3)',
-                      padding: '0.75rem',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border-color)',
-                      maxHeight: '160px',
-                      overflowY: 'auto',
-                      fontSize: '0.78rem',
-                    }}
-                  >
-                    {JSON.stringify(selectedTask.result.output || selectedTask.result, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {selectedTask.error_message && (
-                <div>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--status-failed)' }}>
-                    Failure Reason
-                  </div>
-                  <pre
-                    className="code-font"
-                    style={{
-                      backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                      padding: '0.75rem',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid rgba(239, 68, 68, 0.25)',
-                      color: 'var(--status-failed)',
-                      fontSize: '0.78rem',
-                    }}
-                  >
-                    {selectedTask.error_message}
-                  </pre>
-                </div>
-              )}
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setSelectedTask(null)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TaskDetailsDrawer
+        task={selectedTask}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onRetry={(id) => {
+          const t = tasks.find((x) => x.id === id)
+          if (t) setRetryTask(t)
+        }}
+      />
 
       {/* Confirmation Modal */}
       {retryTask && (

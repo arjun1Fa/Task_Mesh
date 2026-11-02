@@ -1,0 +1,425 @@
+{
+  "id": "task_de9b7d8fdde0",
+  "idempotency_key": null,
+  "task_type": "image_inference",
+  "payload": {
+    "model": "yolov8n",
+    "confidence_threshold": 0.25,
+    "palette_size": 8,
+    "image_width": 810,
+    "image_height": 1080,
+    "mime_type": "image/jpeg"
+  },
+  "priority": 10,
+  "status": "completed",
+  "created_at": "2026-11-02T04:01:10.184230Z",
+  "updated_at": "2026-11-02T04:01:17.172755Z",
+  "scheduled_at": null,
+  "repeat_every_seconds": null,
+  "timeout_seconds": 60.0,
+  "assigned_node_id": "worker-beta",
+  "current_attempt": 1,
+  "current_attempt_id": "task_de9b7d8fdde0-A1",
+  "active_lease": null,
+  "requires_gpu": false,
+  "required_memory_mb": 0,
+  "required_capabilities": [],
+  "preferred_capabilities": [],
+  "supports_checkpoint": false,
+  "offload_policy": "wireless_allowed",
+  "binary_meta": {
+    "payload_id": "art_in_task_de9b7d8fdde0",
+    "task_id": "task_de9b7d8fdde0",
+    "attempt_id": null,
+    "workload_type": "image_inference",
+    "model_identifier": "yolov8n",
+    "payload_size_bytes": 137419,
+    "mime_type": "image/jpeg",
+    "checksum_sha256": "c02019c4979c191eb739ddd944445ef408dad5679acab6fd520ef9d434bfbc63",
+    "compression": "none",
+    "chunk_size_bytes": 65536,
+    "total_chunks": 3,
+    "stream_id": null,
+    "frame_id": null,
+    "sequence_number": null,
+    "is_last_frame": false,
+    "created_at": "2026-11-02T04:01:10.184447Z"
+  },
+  "retry_policy": {
+    "max_attempts": 3,
+    "base_delay_seconds": 1.0,
+    "max_delay_seconds": 60.0,
+    "jitter": true
+  },
+  "retry_count": 0,
+  "error_message": null,
+  "progress": 1.0,
+  "latest_checkpoint": null,
+  "result": {
+    "task_id": "task_de9b7d8fdde0",
+    "attempt_id": "task_de9b7d8fdde0-A1",
+    "node_id": "worker-beta",
+    "status": "completed",
+    "output": {
+      "model": {
+        "name": "yolov8n",
+        "version": "8.4.33",
+        "backend": "cpu",
+        "weights_path": "C:\\Users\\ASUS\\.taskmesh\\worker-beta\\models\\yolov8n.pt",
+        "cache_dir": "C:\\Users\\ASUS\\.taskmesh\\worker-beta\\models"
+      },
+      "image_dimensions": [
+        810,
+        1080
+      ],
+      "detections_count": 6,
+      "detections": [
+        {
+          "class": "bus",
+          "class_id": 5,
+          "confidence": 0.8734,
+          "bbox": [
+            22.9,
+            231.3,
+            805.0,
+            756.8
+          ],
+          "object_color": {
+            "name": "Charcoal",
+            "nearest_name": "Charcoal",
+            "hex": "#1C1F2D",
+            "rgb": [
+              28,
+              31,
+              45
+            ],
+            "percentage": 40.56,
+            "pixel_count": 2028,
+            "approximation": "bounding_box_crop"
+          },
+          "dominant_color": {
+            "name": "Charcoal",
+            "nearest_name": "Charcoal",
+            "hex": "#1C1F2D",
+            "rgb": [
+              28,
+              31,
+              45
+            ],
+            "percentage": 40.56,
+            "pixel_count": 2028,
+            "approximation": "bounding_box_crop"
+          }
+        },
+        {
+          "class": "person",
+          "class_id": 0,
+          "confidence": 0.8657,
+          "bbox": [
+            48.6,
+            398.6,
+            245.3,
+            902.7
+          ],
+          "object_color": {
+            "name": "Charcoal",
+            "nearest_name": "Charcoal",
+            "hex": "#1D1E2D",
+            "rgb": [
+              29,
+              30,
+              45
+            ],
+            "percentage": 38.8,
+            "pixel_count": 1940,
+            "approximation": "bounding_box_crop"
+          },
+          "dominant_color": {
+            "name": "Charcoal",
+            "nearest_name": "Charcoal",
+            "hex": "#1D1E2D",
+            "rgb": [
+              29,
+              30,
+              45
+            ],
+            "percentage": 38.8,
+            "pixel_count": 1940,
+            "approximation": "bounding_box_crop"
+          }
+        },
+        {
+          "class": "person",
+          "class_id": 0,
+          "confidence": 0.8528,
+          "bbox": [
+            669.5,
+            392.2,
+            809.7,
+            877.0
+          ],
+          "object_color": {
+            "name": "Charcoal",
+            "nearest_name": "Charcoal",
+            "hex": "#13182A",
+            "rgb": [
+              19,
+              24,
+              42
+            ],
+            "percentage": 49.26,
+            "pixel_count": 2463,
+            "approximation": "bounding_box_crop"
+          },
+          "dominant_color": {
+            "name": "Charcoal",
+            "nearest_name": "Charcoal",
+            "hex": "#13182A",
+            "rgb": [
+              19,
+              24,
+              42
+            ],
+            "percentage": 49.26,
+            "pixel_count": 2463,
+            "approximation": "bounding_box_crop"
+          }
+        },
+        {
+          "class": "person",
+          "class_id": 0,
+          "confidence": 0.8252,
+          "bbox": [
+            221.5,
+            405.8,
+            345.0,
+            857.5
+          ],
+          "object_color": {
+            "name": "Black",
+            "nearest_name": "Black",
+            "hex": "#101324",
+            "rgb": [
+              16,
+              19,
+              36
+            ],
+            "percentage": 53.28,
+            "pixel_count": 2664,
+            "approximation": "bounding_box_crop"
+          },
+          "dominant_color": {
+            "name": "Black",
+            "nearest_name": "Black",
+            "hex": "#101324",
+            "rgb": [
+              16,
+              19,
+              36
+            ],
+            "percentage": 53.28,
+            "pixel_count": 2664,
+            "approximation": "bounding_box_crop"
+          }
+        },
+        {
+          "class": "person",
+          "class_id": 0,
+          "confidence": 0.2611,
+          "bbox": [
+            0.0,
+            550.5,
+            63.0,
+            873.4
+          ],
+          "object_color": {
+            "name": "Dim Gray",
+            "nearest_name": "Dim Gray",
+            "hex": "#595666",
+            "rgb": [
+              89,
+              86,
+              102
+            ],
+            "percentage": 42.78,
+            "pixel_count": 2139,
+            "approximation": "bounding_box_crop"
+          },
+          "dominant_color": {
+            "name": "Dim Gray",
+            "nearest_name": "Dim Gray",
+            "hex": "#595666",
+            "rgb": [
+              89,
+              86,
+              102
+            ],
+            "percentage": 42.78,
+            "pixel_count": 2139,
+            "approximation": "bounding_box_crop"
+          }
+        },
+        {
+          "class": "stop sign",
+          "class_id": 11,
+          "confidence": 0.2551,
+          "bbox": [
+            0.1,
+            254.5,
+            32.6,
+            324.9
+          ],
+          "object_color": {
+            "name": "Burgundy",
+            "nearest_name": "Burgundy",
+            "hex": "#672927",
+            "rgb": [
+              103,
+              41,
+              39
+            ],
+            "percentage": 49.15,
+            "pixel_count": 1101,
+            "approximation": "bounding_box_crop"
+          },
+          "dominant_color": {
+            "name": "Burgundy",
+            "nearest_name": "Burgundy",
+            "hex": "#672927",
+            "rgb": [
+              103,
+              41,
+              39
+            ],
+            "percentage": 49.15,
+            "pixel_count": 1101,
+            "approximation": "bounding_box_crop"
+          }
+        }
+      ],
+      "dominant_colors": [
+        {
+          "name": "Silver",
+          "nearest_name": "Silver",
+          "hex": "#C2B7AA",
+          "rgb": [
+            194,
+            183,
+            170
+          ],
+          "percentage": 16.29,
+          "pixel_count": 4074
+        },
+        {
+          "name": "Slate Gray",
+          "nearest_name": "Slate Gray",
+          "hex": "#A2978C",
+          "rgb": [
+            162,
+            151,
+            140
+          ],
+          "percentage": 14.66,
+          "pixel_count": 3664
+        },
+        {
+          "name": "Charcoal",
+          "nearest_name": "Charcoal",
+          "hex": "#2E303A",
+          "rgb": [
+            46,
+            48,
+            58
+          ],
+          "percentage": 14.56,
+          "pixel_count": 3641
+        },
+        {
+          "name": "Dim Gray",
+          "nearest_name": "Dim Gray",
+          "hex": "#797373",
+          "rgb": [
+            121,
+            115,
+            115
+          ],
+          "percentage": 13.79,
+          "pixel_count": 3448
+        },
+        {
+          "name": "Black",
+          "nearest_name": "Black",
+          "hex": "#0C0F1F",
+          "rgb": [
+            12,
+            15,
+            31
+          ],
+          "percentage": 12.8,
+          "pixel_count": 3200
+        },
+        {
+          "name": "Dim Gray",
+          "nearest_name": "Dim Gray",
+          "hex": "#535054",
+          "rgb": [
+            83,
+            80,
+            84
+          ],
+          "percentage": 11.79,
+          "pixel_count": 2947
+        },
+        {
+          "name": "Light Gray",
+          "nearest_name": "Light Gray",
+          "hex": "#E7E1DA",
+          "rgb": [
+            231,
+            225,
+            218
+          ],
+          "percentage": 10.93,
+          "pixel_count": 2732
+        },
+        {
+          "name": "Cobalt Blue",
+          "nearest_name": "Cobalt Blue",
+          "hex": "#175B9C",
+          "rgb": [
+            23,
+            91,
+            156
+          ],
+          "percentage": 5.18,
+          "pixel_count": 1294
+        }
+      ],
+      "annotated_image_artifact_id": "art_out_task_c02019c4979c",
+      "input_checksum": "c02019c4979c191eb739ddd944445ef408dad5679acab6fd520ef9d434bfbc63",
+      "timings": {
+        "preprocessing_ms": 11.96,
+        "inference_ms": 6002.82,
+        "color_extraction_ms": 596.48,
+        "annotation_ms": 11.78,
+        "total_execution_ms": 6623.09
+      },
+      "inference_latency_ms": 6002.82,
+      "inference_time_ms": 6002.82,
+      "execution_time_seconds": 6.6231
+    },
+    "error": null,
+    "execution_time_seconds": 6.6242,
+    "metrics": {
+      "inference_time_ms": 6002.82,
+      "execution_time_seconds": 6.6242,
+      "node_id": "worker-beta",
+      "attempt_id": "task_de9b7d8fdde0-A1",
+      "payload_size_bytes": 137419
+    },
+    "completed_at": "2026-11-02T04:01:17.145022Z",
+    "started_at": "2026-11-02T04:01:10.520817Z",
+    "worker_hostname": "Ella"
+  },
+  "metadata": {}
+}

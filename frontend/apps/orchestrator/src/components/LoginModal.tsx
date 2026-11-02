@@ -99,6 +99,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 className="form-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter cluster password..."
                 required
               />
             </div>
@@ -106,68 +107,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
             <div
               style={{
                 fontSize: '0.75rem',
-                color: 'var(--text-secondary)',
+                color: 'var(--text-dim)',
                 marginTop: '0.75rem',
-                backgroundColor: 'var(--bg-surface-elevated)',
-                padding: '0.65rem 0.85rem',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border-main)',
+                lineHeight: '1.4',
               }}
             >
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.45rem' }}>
-                One-Click Role Authentication:
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
-                  onClick={async () => {
-                    setUsername('admin')
-                    setPassword('admin123')
-                    setIsSubmitting(true)
-                    setError(null)
-                    try {
-                      await login('admin', 'admin123')
-                      onClose()
-                    } catch (err: any) {
-                      setError(err.message || 'Login failed')
-                    } finally {
-                      setIsSubmitting(false)
-                    }
-                  }}
-                  disabled={isSubmitting}
-                >
-                  <Shield size={12} color="var(--accent-blue)" />
-                  <span>Sign In as Admin</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
-                  onClick={async () => {
-                    setUsername('operator')
-                    setPassword('operator123')
-                    setIsSubmitting(true)
-                    setError(null)
-                    try {
-                      await login('operator', 'operator123')
-                      onClose()
-                    } catch (err: any) {
-                      setError(err.message || 'Login failed')
-                    } finally {
-                      setIsSubmitting(false)
-                    }
-                  }}
-                  disabled={isSubmitting}
-                >
-                  <Shield size={12} color="var(--accent-purple)" />
-                  <span>Sign In as Operator</span>
-                </button>
-              </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
-                Or manually enter custom credentials or cluster service tokens configured in your deployment.
-              </div>
+              Authenticate using credentials authorized in your deployment database. Session tokens are signed and verified by the Orchestrator RBAC service.
             </div>
           </div>
 

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { workerApi } from '../api/workerClient'
 import type { Task, WorkerTasksResponse } from '@shared/types'
+import { TaskDetailsDrawer } from '@shared/components/TaskDetailsDrawer'
 
 export const WorkerTasks: React.FC = () => {
   const [tasksData, setTasksData] = useState<WorkerTasksResponse | null>(null)
@@ -172,92 +173,11 @@ export const WorkerTasks: React.FC = () => {
       </div>
 
       {/* Task Drawer */}
-      {selectedTask && (
-        <div className="modal-backdrop" onClick={() => setSelectedTask(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <Layers size={18} color="var(--accent-purple)" />
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-                  Worker Task Record: <span className="mono">{(selectedTask as any).id || (selectedTask as any).task_id}</span>
-                </h3>
-              </div>
-              <button className="btn btn-secondary btn-icon" onClick={() => setSelectedTask(null)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="grid grid-3" style={{ gap: '0.75rem' }}>
-                <div className="card" style={{ margin: 0, padding: '0.75rem' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Status</div>
-                  <div style={{ marginTop: '0.25rem' }}>
-                    <span className={`status-pill ${selectedTask.status}`}>{selectedTask.status}</span>
-                  </div>
-                </div>
-                <div className="card" style={{ margin: 0, padding: '0.75rem' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Task Type</div>
-                  <div className="mono" style={{ marginTop: '0.25rem', fontWeight: 600 }}>
-                    {selectedTask.task_type}
-                  </div>
-                </div>
-                <div className="card" style={{ margin: 0, padding: '0.75rem' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Compute Time</div>
-                  <div className="mono" style={{ marginTop: '0.25rem', color: 'var(--accent-green)' }}>
-                    {(selectedTask as any).result?.execution_time_seconds !== undefined || (selectedTask as any).execution_time_seconds !== undefined
-                      ? `${Number((selectedTask as any).result?.execution_time_seconds ?? (selectedTask as any).execution_time_seconds).toFixed(3)}s`
-                      : 'Executing'}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Task Payload</div>
-                <pre
-                  className="code-font"
-                  style={{
-                    backgroundColor: 'rgba(0,0,0,0.3)',
-                    padding: '0.75rem',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-color)',
-                    maxHeight: '160px',
-                    overflowY: 'auto',
-                    fontSize: '0.78rem',
-                  }}
-                >
-                  {JSON.stringify((selectedTask as any).payload || (selectedTask as any).payload_summary || {}, null, 2)}
-                </pre>
-              </div>
-
-              {((selectedTask as any).result || (selectedTask as any).ai_metadata) && (
-                <div>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Output / Result</div>
-                  <pre
-                    className="code-font"
-                    style={{
-                      backgroundColor: 'rgba(0,0,0,0.3)',
-                      padding: '0.75rem',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border-color)',
-                      maxHeight: '160px',
-                      overflowY: 'auto',
-                      fontSize: '0.78rem',
-                    }}
-                  >
-                    {JSON.stringify((selectedTask as any).result || (selectedTask as any).ai_metadata, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setSelectedTask(null)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TaskDetailsDrawer
+        task={selectedTask}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+      />
     </div>
   )
 }

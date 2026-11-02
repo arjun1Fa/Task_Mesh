@@ -219,6 +219,14 @@ def create_worker_console_app(agent: Any) -> FastAPI:
             "total_recorded": len(history),
         }
 
+    @app.get("/api/worker/tasks/{task_id}")
+    async def get_task_by_id(task_id: str) -> Dict[str, Any]:
+        history = list(getattr(agent, "_task_history", deque()))
+        for t in history:
+            if t.get("id") == task_id or t.get("task_id") == task_id:
+                return t
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found on this worker")
+
     @app.get("/api/worker/pool")
     async def get_pool() -> Dict[str, Any]:
         active = agent.pool.active_count
@@ -346,6 +354,34 @@ def create_worker_console_app(agent: Any) -> FastAPI:
         if is_loopback and hasattr(agent, "console_token"):
             res["console_token"] = agent.console_token
         return res
+
+    # -------------------------------------------------------------
+    # Image Artifact Serving (Input & Output Annotated Images)
+    # -------------------------------------------------------------
+
+    @app.get("/api/worker/tasks/{task_id}/input-image")
+    async def get_worker_task_input_image(task_id: str) -> Response:
+        artifacts = getattr(agent, "_artifacts", {})
+        data = artifacts.get(f"art_in_{task_id}") or artifacts.get(f"input_{task_id}") or artifacts.get(task_id)
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No input image found on worker for task {task_id}")
+        return Response(content=data, media_type="image/jpeg")
+
+    @app.get("/api/worker/tasks/{task_id}/annotated-image")
+    async def get_worker_task_annotated_image(task_id: str) -> Response:
+        artifacts = getattr(agent, "_artifacts", {})
+        data = artifacts.get(f"art_out_{task_id}") or artifacts.get(f"annotated_{task_id}")
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No annotated image found on worker for task {task_id}")
+        return Response(content=data, media_type="image/jpeg")
+
+    @app.get("/api/worker/artifacts/{artifact_id}")
+    async def get_worker_artifact(artifact_id: str) -> Response:
+        artifacts = getattr(agent, "_artifacts", {})
+        data = artifacts.get(artifact_id)
+        if not data:
+            raise HTTPException(status_code=404, detail=f"Artifact '{artifact_id}' not found on worker")
+        return Response(content=data, media_type="image/jpeg")
 
     # -------------------------------------------------------------
     # Static UI Serving (Dedicated Worker Agent Console UI)

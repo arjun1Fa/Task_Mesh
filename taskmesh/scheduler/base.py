@@ -39,6 +39,16 @@ def filter_eligible_nodes(task: Task, nodes: List[NodeProfile]) -> List[NodeProf
             if not all(tag in caps.tags for tag in task.required_capabilities):
                 continue
 
+        # 7. AI Model availability check (e.g. yolov8n)
+        if isinstance(task.payload, dict) and "model" in task.payload:
+            requested_model = str(task.payload["model"]).replace(".pt", "")
+            if caps.model_readiness:
+                m_info = caps.model_readiness.get(requested_model)
+                if not m_info or not m_info.get("available", False):
+                    continue
+            elif caps.supported_models and requested_model not in caps.supported_models:
+                continue
+
         eligible.append(node)
 
     return eligible

@@ -56,6 +56,7 @@ class NodeConfig(BaseModel):
     heartbeat_interval_seconds: float = Field(default_factory=lambda: float(os.getenv("TASKMESH_HEARTBEAT_INTERVAL", "3.0")))
     telemetry_interval_seconds: float = Field(default_factory=lambda: float(os.getenv("TASKMESH_TELEMETRY_INTERVAL", "5.0")))
     tags: str = Field(default_factory=lambda: os.getenv("TASKMESH_TAGS", "cpu,general"))
+    model_cache_dir: Optional[str] = Field(default_factory=lambda: os.getenv("TASKMESH_MODEL_CACHE_DIR", None))
 
     # Wireless & Discovery Configuration
     max_payload_size_bytes: int = Field(default_factory=lambda: int(os.getenv("TASKMESH_MAX_PAYLOAD_SIZE", str(50 * 1024 * 1024))))

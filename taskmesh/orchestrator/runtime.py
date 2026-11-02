@@ -485,6 +485,14 @@ class OrchestratorRuntime:
         """Resumes a drained or maintenance node to online status."""
         await self.registry.set_resumed(node_id)
         self.audit.log(action="node.resume", actor=actor, target=node_id, result="success")
+        ws = await self.registry.get_socket(node_id)
+        if ws:
+            msg = ProtocolMessage(
+                message_type=MessageType.NODE_RESUME,
+                node_id=node_id,
+                payload={"node_id": node_id},
+            )
+            await _send_websocket_text(ws, json.dumps(msg.model_dump(mode="json")))
         logger.info(f"Node [{node_id}] resumed to ONLINE by {actor}")
         await self.events.broadcast(
             event_type="node.status_changed",
@@ -728,14 +736,36 @@ class OrchestratorRuntime:
                     await asyncio.sleep(1.0)
                     continue
 
-                try:
-                    decision = await self.scheduler.select_node(task, nodes)
-                except IneligibleNodeError:
-                    # No nodes currently meet task requirements, wait and re-enqueue
-                    await self.queue.enqueue(task)
-                    await asyncio.sleep(1.0)
+                skipped_ineligible = []
+                selected_task = None
+                decision = None
+
+                candidate_task = task
+                while candidate_task:
+                    # Refresh candidate from repo in case cancelled while in queue
+                    latest = await self.repo.get(candidate_task.id)
+                    if not latest or latest.status.is_terminal():
+                        candidate_task = await self.queue.dequeue(timeout_seconds=0.01)
+                        continue
+                    candidate_task = latest
+
+                    try:
+                        decision = await self.scheduler.select_node(candidate_task, nodes)
+                        selected_task = candidate_task
+                        break
+                    except IneligibleNodeError:
+                        skipped_ineligible.append(candidate_task)
+                        candidate_task = await self.queue.dequeue(timeout_seconds=0.01)
+
+                # Re-enqueue any temporarily skipped ineligible tasks
+                for sk in skipped_ineligible:
+                    await self.queue.enqueue(sk)
+
+                if not selected_task or not decision:
+                    await asyncio.sleep(self.config.scheduler_poll_seconds)
                     continue
 
+                task = selected_task
                 selected_node_id = decision.selected_node_id
                 ws = await self.registry.get_socket(selected_node_id)
                 if not ws:
@@ -955,6 +985,12 @@ class OrchestratorRuntime:
             return
 
         res = TaskResult.model_validate(result_raw)
+
+        # Update node statistics
+        node = await self.registry.get_node(node_id)
+        if node and not res.worker_hostname:
+            res.worker_hostname = node.capabilities.hostname or "localhost"
+
         task.status = TaskStatus.COMPLETED
         task.result = res
         task.progress = 1.0
@@ -962,8 +998,6 @@ class OrchestratorRuntime:
         task.assigned_node_id = node_id
         await self.repo.save(task)
 
-        # Update node statistics
-        node = await self.registry.get_node(node_id)
         if node:
             node.total_completed += 1
             if isinstance(self.scheduler, AdaptiveScheduler):

@@ -13,7 +13,14 @@ from taskmesh.core.enums import MessageType, NodeStatus, TaskStatus
 from taskmesh.core.models import BinaryPayloadMeta, CheckpointData, TaskResult, utc_now
 from taskmesh.discovery.broadcast import NodeDiscoveryAdvertiser
 from taskmesh.handlers.ai_inference import image_inference_handler
-from taskmesh.handlers.builtin import cpu_test_handler, log_handler, sleep_handler
+from taskmesh.handlers.builtin import (
+    benchmark_handler,
+    cpu_test_handler,
+    echo_handler,
+    log_handler,
+    matrix_multiply_handler,
+    sleep_handler,
+)
 from taskmesh.node.hardware import collect_telemetry, profile_hardware
 from taskmesh.node.worker_pool import WorkerPool
 from taskmesh.security.hmac_auth import SecurityManager
@@ -96,7 +103,10 @@ class NodeAgent:
         # Register default handlers
         self.pool.register_handler("log", log_handler)
         self.pool.register_handler("sleep", sleep_handler)
+        self.pool.register_handler("echo", echo_handler)
         self.pool.register_handler("cpu_test", cpu_test_handler)
+        self.pool.register_handler("matrix_multiply", matrix_multiply_handler)
+        self.pool.register_handler("benchmark", benchmark_handler)
         self.pool.register_handler("image_inference", image_inference_handler)
 
         tags = [t.strip() for t in self.config.tags.split(",") if t.strip()]
@@ -107,6 +117,43 @@ class NodeAgent:
             is_local=self.config.is_local,
             port=self.config.lan_port or 8000,
         )
+
+        # AI Model Provisioning & Capability Verification
+        self._artifacts: dict[str, bytes] = {}
+        from taskmesh.node.model_provisioner import get_model_provisioner
+        self.model_provisioner = get_model_provisioner(
+            cache_dir=getattr(self.config, "model_cache_dir", None)
+        )
+        is_cached = self.model_provisioner.is_model_cached("yolov8n")
+        backend = "cuda:0" if self.capabilities.has_gpu else "cpu"
+        gpu_name = self.capabilities.gpu_name
+        gpu_vram = self.capabilities.gpu_vram_mb
+        if is_cached:
+            self.capabilities.supported_models = ["yolov8n"]
+            self.capabilities.inference_backend = backend
+            self.capabilities.model_readiness = {
+                "yolov8n": {
+                    "available": True,
+                    "loadable": True,
+                    "backend": backend,
+                    "gpu_name": gpu_name,
+                    "gpu_vram_mb": gpu_vram,
+                    "version": "8.4.33",
+                    "weights_path": self.model_provisioner.get_model_path("yolov8n"),
+                }
+            }
+        else:
+            self.capabilities.supported_models = []
+            self.capabilities.model_readiness = {
+                "yolov8n": {
+                    "available": False,
+                    "loadable": False,
+                    "backend": backend,
+                    "error": "Model weights missing from local cache",
+                }
+            }
+            if "image_inference" in self.capabilities.supported_handlers:
+                self.capabilities.supported_handlers.remove("image_inference")
 
 
     async def start(self) -> None:
@@ -287,6 +334,10 @@ class NodeAgent:
             logger.info(f"Node [{self.node_id}] instructed to DRAIN")
             self.status = NodeStatus.DRAINING
 
+        elif msg.message_type == MessageType.NODE_RESUME:
+            logger.info(f"Node [{self.node_id}] instructed to RESUME")
+            self.status = NodeStatus.ONLINE
+
         elif msg.message_type == MessageType.PONG:
             orig_str = msg.payload.get("orig_timestamp")
             if orig_str:
@@ -376,8 +427,36 @@ class NodeAgent:
             binary_payload=binary_bytes,
         )
 
+        result.worker_hostname = self.capabilities.hostname or "localhost"
+
+        # Store input image artifact locally for Worker Console preview
+        if binary_bytes:
+            self._artifacts[task_id] = binary_bytes
+            self._artifacts[f"art_in_{task_id}"] = binary_bytes
+            self._artifacts[f"input_{task_id}"] = binary_bytes
+
+        # Store and upload output annotated image artifact if generated
+        if isinstance(result.output, dict) and "_annotated_image_bytes" in result.output:
+            ann_bytes = result.output.pop("_annotated_image_bytes", None)
+            if ann_bytes:
+                art_out_id = result.output.get("annotated_image_artifact_id", f"art_out_{task_id}")
+                self._artifacts[art_out_id] = ann_bytes
+                self._artifacts[f"annotated_{task_id}"] = ann_bytes
+                self._artifacts[f"art_out_{task_id}"] = ann_bytes
+                # Upload annotated artifact to Orchestrator
+                try:
+                    await self._upload_annotated_artifact(task_id, art_out_id, ann_bytes)
+                except Exception as e:
+                    logger.warning(f"Could not upload output artifact {art_out_id} to orchestrator: {e}")
+
         task_record["execution_time_seconds"] = result.execution_time_seconds
-        task_record["completed_at"] = utc_now().isoformat()
+        task_record["completed_at"] = result.completed_at.isoformat()
+        if result.started_at:
+            task_record["started_at"] = result.started_at.isoformat()
+        task_record["worker_hostname"] = self.capabilities.hostname or "localhost"
+        task_record["result"] = result.model_dump(mode="json")
+        task_record["output"] = result.output
+        task_record["metrics"] = result.metrics
 
         # 5. Return result
         if result.status == TaskStatus.COMPLETED:
@@ -404,4 +483,38 @@ class NodeAgent:
                 execution_time_seconds=result.execution_time_seconds,
             )
             await self._send(MessageType.TASK_FAILED, fail_payload.model_dump(mode="json"))
+
+    async def _upload_annotated_artifact(self, task_id: str, artifact_id: str, image_bytes: bytes) -> None:
+        """Uploads completed annotated image artifact to the central Orchestrator."""
+        if not self.config.orchestrator_url or not image_bytes:
+            return
+        base = self.config.orchestrator_url.replace("ws://", "http://").replace("wss://", "https://")
+        if "/v1/ws" in base:
+            base = base.split("/v1/ws")[0]
+        upload_url = f"{base.rstrip('/')}/v1/tasks/{task_id}/artifacts/annotated-image"
+        headers = {
+            "Content-Type": "image/jpeg",
+            "X-Node-Token": self.config.join_token or "",
+            "X-Artifact-ID": artifact_id,
+        }
+        loop = asyncio.get_running_loop()
+        def _do_post():
+            import urllib.request
+            req = urllib.request.Request(upload_url, data=image_bytes, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.status
+        try:
+            await loop.run_in_executor(None, _do_post)
+            logger.info(f"Node [{self.node_id}] uploaded annotated image artifact {artifact_id} ({len(image_bytes)} bytes)")
+        except Exception as e:
+            logger.warning(f"Could not upload annotated image artifact {artifact_id} to orchestrator: {e}")
+
+    async def _warmup_model(self, model_name: str) -> None:
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, self.model_provisioner.verify_and_load, model_name)
+        except Exception as e:
+            logger.warning(f"Background warmup for model {model_name} failed: {e}")
+
+
 

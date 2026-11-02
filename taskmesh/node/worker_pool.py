@@ -61,6 +61,7 @@ class WorkerPool:
             )
 
         start_time = time.perf_counter()
+        started_at = utc_now()
 
         async def _run() -> Any:
             async with self._semaphore:
@@ -75,6 +76,8 @@ class WorkerPool:
                     kwargs["checkpoint_callback"] = checkpoint_callback
                 if "binary_payload" in sig.parameters:
                     kwargs["binary_payload"] = binary_payload
+                if "node_id" in sig.parameters:
+                    kwargs["node_id"] = node_id
 
                 if inspect.iscoroutinefunction(handler):
                     return await handler(assignment.payload, **kwargs)
@@ -112,6 +115,7 @@ class WorkerPool:
                 output=out_dict,
                 metrics=telemetry_metrics,
                 execution_time_seconds=round(elapsed, 4),
+                started_at=started_at,
                 completed_at=utc_now(),
             )
 
@@ -124,6 +128,7 @@ class WorkerPool:
                 status=TaskStatus.FAILED,
                 error=f"Task execution timed out after {assignment.timeout_seconds}s",
                 execution_time_seconds=round(elapsed, 4),
+                started_at=started_at,
                 completed_at=utc_now(),
             )
         except asyncio.CancelledError:
@@ -135,6 +140,7 @@ class WorkerPool:
                 status=TaskStatus.CANCELLED,
                 error="Task was cancelled",
                 execution_time_seconds=round(elapsed, 4),
+                started_at=started_at,
                 completed_at=utc_now(),
             )
         except Exception as e:
@@ -146,6 +152,7 @@ class WorkerPool:
                 status=TaskStatus.FAILED,
                 error=str(e),
                 execution_time_seconds=round(elapsed, 4),
+                started_at=started_at,
                 completed_at=utc_now(),
             )
         finally:
