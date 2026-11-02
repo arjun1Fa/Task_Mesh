@@ -42,40 +42,40 @@ export const WorkerSidebar: React.FC<WorkerSidebarProps> = ({
   const navItems: NavItem[] = [
     {
       id: 'overview',
-      label: '1. Local Overview',
+      label: 'Local Overview',
       icon: LayoutDashboard,
     },
     {
       id: 'hardware',
-      label: '2. Hardware Profile',
+      label: 'Hardware Profile',
       icon: Cpu,
     },
     {
       id: 'tasks',
-      label: '3. Task Execution',
+      label: 'Task Execution',
       icon: Layers,
       badge: activeTasksCount > 0 ? activeTasksCount : undefined,
     },
     {
       id: 'pool',
-      label: '4. Concurrency Slots',
+      label: 'Concurrency Slots',
       icon: Sliders,
       badge: `${activeTasksCount}/${concurrency}`,
       badgeColor: 'badge-blue',
     },
     {
       id: 'network',
-      label: '5. Network & TMCH',
+      label: 'Network & TMCH',
       icon: Wifi,
     },
     {
       id: 'logs',
-      label: '6. Node Agent Logs',
+      label: 'Node Agent Logs',
       icon: Terminal,
     },
     {
       id: 'settings',
-      label: '7. Local Management',
+      label: 'Local Management',
       icon: Settings,
     },
   ]

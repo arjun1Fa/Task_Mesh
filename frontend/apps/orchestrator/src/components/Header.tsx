@@ -5,9 +5,9 @@ import {
   LogIn,
   LogOut,
   User as UserIcon,
-  PlusCircle,
-  Activity,
-  Server
+  Bell,
+  Settings,
+  Plus
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import type { ConnectionStatus } from '../websocket/useDashboardSocket'
@@ -30,150 +30,71 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="top-header">
+      {/* Brand & Subtitle Pill */}
       <div className="brand-section">
-        <div style={{
-          width: 30,
-          height: 30,
-          borderRadius: 4,
-          backgroundColor: 'var(--accent-blue)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#ffffff',
-          fontWeight: 800,
-        }}>
-          <Layers size={17} />
+        <div className="brand-icon-box">
+          <Layers size={18} />
         </div>
         <div className="brand-title">
-          TaskMesh
-          <span className="brand-tag tag-orchestrator">
-            Orchestrator Control Center
-          </span>
+          <span>TaskMesh</span>
+          <span className="header-slash">/</span>
+          <span className="header-subtitle-pill">Orchestrator Control Center</span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      {/* Right Actions & Status Badges */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        {/* Cluster Status Pill */}
+        <div
+          className="cluster-online-badge"
+          style={{ cursor: !isAuthenticated ? 'pointer' : 'default' }}
+          onClick={!isAuthenticated ? onOpenLogin : undefined}
+          title={!isAuthenticated ? 'Sign in to manage cluster' : 'Cluster is online'}
+        >
+          <span className="cluster-online-dot" />
+          <span>{isHealthy ? 'Cluster Online' : clusterStatus.toUpperCase()}</span>
+        </div>
+
         {/* Quick Submit Task Action */}
         {can('tasks:submit') && (
           <button
             onClick={onOpenSubmitTask}
             className="btn btn-primary btn-sm"
           >
-            <PlusCircle size={13} />
+            <Plus size={14} />
             <span>Submit Task</span>
           </button>
         )}
 
-        {/* Live WebSocket Status Pill */}
-        <div
-          className={`badge ${
-            !isAuthenticated
-              ? 'badge-amber'
-              : wsStatus === 'connected'
-              ? 'badge-connected'
-              : 'badge-danger'
-          }`}
-          title={
-            !isAuthenticated
-              ? 'Authentication required to establish live WebSocket event feed. Click to sign in.'
-              : `WebSocket feed: ${wsStatus}`
-          }
-          onClick={!isAuthenticated ? onOpenLogin : undefined}
-          style={!isAuthenticated ? { cursor: 'pointer' } : undefined}
-        >
-          <span
-            className={`status-dot ${
-              !isAuthenticated
-                ? 'dot-degraded'
-                : wsStatus === 'connected'
-                ? 'dot-connected'
-                : 'dot-disconnected'
-            }`}
-          />
-          <Radio size={11} />
-          <span>
-            WS:{' '}
-            {!isAuthenticated
-              ? 'AUTH REQUIRED'
-              : wsStatus.toUpperCase()}
-          </span>
+        {/* Bell & Settings Icons */}
+        <div className="header-action-icon" title="Notifications">
+          <Bell size={15} />
         </div>
 
-        {/* Cluster Status Pill */}
-        <div
-          className={`badge ${
-            !isAuthenticated
-              ? 'badge-amber'
-              : isHealthy
-              ? 'badge-healthy'
-              : 'badge-warning'
-          }`}
-          title={
-            !isAuthenticated
-              ? 'Authentication required to inspect cluster health. Click to sign in.'
-              : `Cluster health: ${clusterStatus}`
-          }
-          onClick={!isAuthenticated ? onOpenLogin : undefined}
-          style={!isAuthenticated ? { cursor: 'pointer' } : undefined}
-        >
-          <span
-            className={`status-dot ${
-              !isAuthenticated
-                ? 'dot-degraded'
-                : isHealthy
-                ? 'dot-online'
-                : 'dot-degraded'
-            }`}
-          />
-          <span>
-            CLUSTER:{' '}
-            {!isAuthenticated
-              ? 'AUTH REQUIRED'
-              : clusterStatus.toUpperCase()}
-          </span>
+        <div className="header-action-icon" title="Settings">
+          <Settings size={15} />
         </div>
 
-        {/* User Account State */}
+        {/* User Account / Avatar */}
         {isAuthenticated && user ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              backgroundColor: 'var(--bg-surface-elevated)',
-              padding: '0.2rem 0.5rem',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border-main)',
-            }}>
-              <UserIcon size={12} color="var(--accent-blue)" />
-              <span className="mono" style={{ fontSize: '0.75rem', fontWeight: 600 }}>{user.username}</span>
-              <span style={{
-                fontSize: '0.65rem',
-                textTransform: 'uppercase',
-                backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                padding: '1px 4px',
-                borderRadius: 2,
-                color: 'var(--text-muted)',
-              }}>
-                {user.role}
-              </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div className="user-avatar-circle" title={`${user.username} (${user.role})`}>
+              {user.username.slice(0, 1).toUpperCase()}
             </div>
             <button
               onClick={logout}
               className="btn btn-secondary btn-sm"
               title="Sign Out"
             >
-              <LogOut size={12} />
-              <span>Logout</span>
+              <LogOut size={13} />
             </button>
           </div>
         ) : (
           <button
             onClick={onOpenLogin}
-            className="btn btn-secondary btn-sm"
-            style={{ marginLeft: '0.5rem' }}
+            className="btn btn-primary btn-sm"
           >
-            <LogIn size={12} />
+            <LogIn size={13} />
             <span>Sign In</span>
           </button>
         )}
@@ -181,4 +102,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   )
 }
-

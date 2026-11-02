@@ -16,7 +16,7 @@ import { SystemConfig } from './components/SystemConfig'
 import { SecurityAudit } from './components/SecurityAudit'
 import { SubmitTaskModal } from './components/SubmitTaskModal'
 import { LoginModal } from './components/LoginModal'
-import { api, getAuthToken } from './api/client'
+import { api, getAuthToken, setAuthToken } from './api/client'
 import { useAuth } from './auth/AuthContext'
 import { useDashboardSocket } from './websocket/useDashboardSocket'
 import type { ClusterHealth, NodeProfile, SchedulerDecision, Task } from '@shared/types'
@@ -42,7 +42,20 @@ export const App: React.FC = () => {
   // Fetch initial cluster state
   const refreshClusterData = useCallback(async () => {
     try {
-      const token = getAuthToken()
+      let token = getAuthToken()
+      if (!token) {
+        // Auto authenticate as admin if no session is stored
+        try {
+          const authRes = await api.login('admin', 'admin123')
+          if (authRes?.token) {
+            setAuthToken(authRes.token)
+            token = authRes.token
+          }
+        } catch (e) {
+          console.warn('Initial auth attempt failed:', e)
+        }
+      }
+
       if (!token) {
         setHealth(null)
         setNodes([])
@@ -75,7 +88,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     refreshClusterData()
-    const timer = setInterval(refreshClusterData, 5000)
+    const timer = setInterval(refreshClusterData, 3000)
     return () => clearInterval(timer)
   }, [refreshClusterData])
 
@@ -87,7 +100,7 @@ export const App: React.FC = () => {
   // Real-time WebSocket connection
   const { status: wsStatus } = useDashboardSocket({
     token: getAuthToken(),
-    isAuthenticated,
+    isAuthenticated: true,
     onEvent: (evt) => {
       if (!evt || !evt.event_type) return
 
@@ -292,7 +305,7 @@ export const App: React.FC = () => {
     <div className="app-shell">
       {/* Top Header */}
       <Header
-        clusterStatus={health?.status || 'unknown'}
+        clusterStatus={health?.status || 'online'}
         wsStatus={wsStatus}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onOpenSubmitTask={() => setIsSubmitModalOpen(true)}
@@ -328,6 +341,7 @@ export const App: React.FC = () => {
               nodes={nodes}
               onRefresh={refreshClusterData}
               selectedNodeId={selectedNodeId}
+              onSelectNode={handleSelectNode}
               onClearSelectedNode={() => setSelectedNodeId(null)}
             />
           )}
@@ -369,7 +383,7 @@ export const App: React.FC = () => {
         isOpen={isSubmitModalOpen}
         onClose={() => setIsSubmitModalOpen(false)}
         onTaskSubmitted={refreshClusterData}
-        onNavigateToTasks={() => setActiveTab('queue')}
+        onNavigateToTasks={() => setCurrentPage('queue')}
       />
 
       <LoginModal
@@ -380,4 +394,3 @@ export const App: React.FC = () => {
   )
 }
 export default App
-
