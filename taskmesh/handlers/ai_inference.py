@@ -314,7 +314,13 @@ def image_inference_handler(
     # 2. YOLO Object Detection
     t_infer_start = time.perf_counter()
     from taskmesh.node.model_provisioner import get_model_provisioner
-    provisioner = get_model_provisioner()
+    node_id_hint = payload.get("assigned_node_id") or payload.get("node_id") or kwargs.get("node_id")
+    cache_dir = None
+    if node_id_hint:
+        node_spec_dir = os.path.join(os.path.expanduser("~"), ".taskmesh", node_id_hint, "models")
+        if os.path.exists(node_spec_dir):
+            cache_dir = node_spec_dir
+    provisioner = get_model_provisioner(cache_dir=cache_dir)
     ready, yolo_model, model_info = provisioner.verify_and_load(model_name)
     if not ready or yolo_model is None:
         raise RuntimeError(
@@ -368,6 +374,8 @@ def image_inference_handler(
             "name": model_name,
             "version": model_version,
             "backend": backend,
+            "weights_path": model_info.get("weights_path"),
+            "cache_dir": provisioner.cache_dir,
         },
         "image_dimensions": [w, h],
         "detections_count": len(detections),

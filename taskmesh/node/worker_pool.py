@@ -76,6 +76,8 @@ class WorkerPool:
                     kwargs["checkpoint_callback"] = checkpoint_callback
                 if "binary_payload" in sig.parameters:
                     kwargs["binary_payload"] = binary_payload
+                if "node_id" in sig.parameters:
+                    kwargs["node_id"] = node_id
 
                 if inspect.iscoroutinefunction(handler):
                     return await handler(assignment.payload, **kwargs)

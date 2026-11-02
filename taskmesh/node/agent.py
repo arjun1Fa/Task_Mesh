@@ -334,6 +334,10 @@ class NodeAgent:
             logger.info(f"Node [{self.node_id}] instructed to DRAIN")
             self.status = NodeStatus.DRAINING
 
+        elif msg.message_type == MessageType.NODE_RESUME:
+            logger.info(f"Node [{self.node_id}] instructed to RESUME")
+            self.status = NodeStatus.ONLINE
+
         elif msg.message_type == MessageType.PONG:
             orig_str = msg.payload.get("orig_timestamp")
             if orig_str:

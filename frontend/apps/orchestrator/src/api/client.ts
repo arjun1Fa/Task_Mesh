@@ -172,27 +172,10 @@ export const api = {
     }),
 
   submitBinaryTask: async (formData: FormData): Promise<Task> => {
-    const token = getToken()
-    const headers: Record<string, string> = {}
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-    const response = await fetch(`${BASE_URL}/v1/tasks/binary`, {
+    return request<Task>('/v1/tasks/binary', {
       method: 'POST',
-      headers,
       body: formData,
     })
-    if (!response.ok) {
-      let errMsg = `HTTP ${response.status}`
-      try {
-        const errJson = await response.json()
-        errMsg = errJson.detail || errMsg
-      } catch {
-        // fallback
-      }
-      throw new Error(errMsg)
-    }
-    return response.json()
   },
 
   cancelTask: (taskId: string, reason: string = 'Operator cancellation') =>

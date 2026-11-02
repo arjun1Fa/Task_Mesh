@@ -66,6 +66,7 @@ class MessageType(str, Enum):
     TASK_CANCEL = "task_cancel"
     TASK_CANCELLED = "task_cancelled"
     NODE_DRAIN = "node_drain"
+    NODE_RESUME = "node_resume"
     PING = "ping"
     PONG = "pong"
     DISCOVERY_BEACON = "discovery_beacon"

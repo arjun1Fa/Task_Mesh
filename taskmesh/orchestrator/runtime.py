@@ -485,6 +485,14 @@ class OrchestratorRuntime:
         """Resumes a drained or maintenance node to online status."""
         await self.registry.set_resumed(node_id)
         self.audit.log(action="node.resume", actor=actor, target=node_id, result="success")
+        ws = await self.registry.get_socket(node_id)
+        if ws:
+            msg = ProtocolMessage(
+                message_type=MessageType.NODE_RESUME,
+                node_id=node_id,
+                payload={"node_id": node_id},
+            )
+            await _send_websocket_text(ws, json.dumps(msg.model_dump(mode="json")))
         logger.info(f"Node [{node_id}] resumed to ONLINE by {actor}")
         await self.events.broadcast(
             event_type="node.status_changed",
