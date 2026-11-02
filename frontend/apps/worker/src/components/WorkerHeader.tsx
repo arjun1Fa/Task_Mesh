@@ -1,5 +1,5 @@
 import React from 'react'
-import { Server, Activity, Wifi, Radio, Cpu, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Server, Radio, Bell, Settings } from 'lucide-react'
 import type { WorkerOverview, WorkerIdentity } from '@shared/types'
 
 interface WorkerHeaderProps {
@@ -13,108 +13,55 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({
   overview,
   isOnline,
 }) => {
-  const nodeId = identity?.node_id || overview?.node_id || 'Connecting...'
-  const hostname = identity?.hostname || overview?.hostname || 'localhost'
-  const status = overview?.status || identity?.status || 'unknown'
-  const isWsConnected = overview?.connection_status === 'connected'
-
-  const formatUptime = (seconds?: number) => {
-    if (!seconds) return '0s'
-    const h = Math.floor(seconds / 3600)
-    const m = Math.floor((seconds % 3600) / 60)
-    const s = Math.floor(seconds % 60)
-    return `${h}h ${m}m ${s}s`
-  }
+  const nodeId = identity?.node_id || overview?.node_id || 'node-local-1'
+  const status = overview?.status || identity?.status || 'online'
 
   return (
     <header className="top-header">
+      {/* Brand & Subtitle Pill */}
       <div className="brand-section">
-        <div
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 4,
-            backgroundColor: 'var(--accent-purple)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#ffffff',
-            fontWeight: 800,
-          }}
-        >
-          <Server size={17} />
+        <div className="brand-icon-box">
+          <Server size={18} />
         </div>
         <div className="brand-title">
-          TaskMesh
-          <span className="brand-tag tag-worker">Worker Agent Console</span>
+          <span>TaskMesh</span>
+          <span className="header-slash">/</span>
+          <span className="header-subtitle-pill worker">Worker Agent Console</span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        {/* Bound Local Node Identity - STRICTLY UNSELECTABLE / LOCKED TO THIS HARDWARE */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.35rem 0.65rem',
-            backgroundColor: 'rgba(0,0,0,0.3)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-color)',
-          }}
-        >
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-            NODE:
-          </span>
-          <span className="mono" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
-            {nodeId}
-          </span>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-            ({hostname})
-          </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        {/* Node Status Pill */}
+        <div className="cluster-online-badge">
+          <span className="cluster-online-dot" />
+          <span>ONLINE</span>
         </div>
 
-        {/* Node Operational Status */}
-        <span className={`status-pill ${status}`}>{status}</span>
-
-        {/* Orchestrator Uplink Status */}
+        {/* Bound Local Node ID Tag */}
         <div
+          className="mono"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            padding: '0.35rem 0.6rem',
-            backgroundColor: 'rgba(0,0,0,0.25)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-color)',
-            fontSize: '0.75rem',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid var(--border-main)',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            color: 'var(--text-primary)',
           }}
         >
-          <Radio
-            size={13}
-            color={isWsConnected ? 'var(--status-online)' : 'var(--status-failed)'}
-            className={isWsConnected ? '' : 'spin'}
-          />
-          <span style={{ color: isWsConnected ? 'var(--text-color)' : 'var(--status-failed)' }}>
-            {isWsConnected ? 'Uplink Synced' : 'Uplink Reconnecting'}
-          </span>
+          {nodeId}
         </div>
 
-        {/* Local Uptime */}
-        {overview?.uptime_seconds !== undefined && (
-          <div
-            className="mono"
-            style={{
-              fontSize: '0.75rem',
-              color: 'var(--text-dim)',
-              padding: '0.35rem 0.5rem',
-            }}
-          >
-            Uptime: {formatUptime(overview.uptime_seconds)}
-          </div>
-        )}
+        {/* Header Action Icons */}
+        <div className="header-action-icon" title="Notifications">
+          <Bell size={15} />
+        </div>
+
+        <div className="header-action-icon" title="Settings">
+          <Settings size={15} />
+        </div>
       </div>
     </header>
   )
 }
-
